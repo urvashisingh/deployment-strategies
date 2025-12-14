@@ -60,7 +60,7 @@ on:
           CloudBees registry configuration file containing the registries to use for loading images.
           By default it uses the file containing the registries configured under Integrations' in the CloudBees platform.
         type: string
-        default: ${{ cloudbees.registries }}
+        #default: ${{ cloudbees.registries }}
         
 jobs:
   deploy:
