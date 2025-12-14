@@ -7,46 +7,59 @@ on:
     inputs:
       release-name:
         description: Helm release name
+        type: string
         required: true
       namespace:
         description: Kubernetes namespace to install the chart in, created if missing
+        type: string
         default: default
       version:
         description: Version of the chart to be installed
+        type: string
       values-files:
         description: List of values files relative to the workspace separated by newline
+        type: string
       values:
         description: An inline YAML representation of a values file passed to the Helm command
+        type: string
       timeout:
         description: |
           Helm chart installation timeout.
           However, `Deployment.spec.progressDeadlineSeconds` takes precedence if it is defined with a lower value within the charts manifests.
+        type: string
         default: 10m
       chart-location:
         description: >
           Helm chart location, can be a URL, a local chart archive,
           chart repo alias/chart name or an unpacked chart directory
+        type: string
         required: true
       max-history:
         description: MaxHistory limits the maximum number of revisions saved per release
+        type: number
         default: 10
       debug:
         description: Execute the helm command in debug mode
+        type: boolean
         default: false
       dependency-build:
         description: Build dependencies based on the contents of Chart.lock file
+        type: boolean
         default: false
       env-vars-file:
         description: >
           An optional file with key value pairs of the format export key=value
           to export in the environment before execution of the helm commands.
+        type: string
       dry-run:
         description: Simulate an upgrade, without actually doing it
+        type: boolean
         default: false
       registry-configuration:
         description: >
           CloudBees registry configuration file containing the registries to use for loading images.
           By default it uses the file containing the registries configured under Integrations' in the CloudBees platform.
+        type: string
         default: ${{ cloudbees.registries }}
         
 jobs:
@@ -115,7 +128,6 @@ jobs:
       uses: cloudbees-io/helm-install@v1
       with:
         release-name: ${{ inputs.release-name }}
-        namespace: ${{ inputs.namespace }}
         namespace: ${{ inputs.namespace }}
         version: ${{ inputs.version }}
         values-files: ${{ inputs.values-files }}
