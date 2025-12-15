@@ -79,6 +79,7 @@ jobs:
       CLOUDBEES_REGISTRIES_CONFIG: ${{ inputs.registry-configuration }}
     steps:
     - name: Get Helm chart
+      id: get-helm-chart
       uses: docker://public.ecr.aws/l7o7z1g8/actions/helm-install-action:e0a374369133dba712a5239a3b78bb34c7828cc1
       run: |
         set -uox pipefail
@@ -118,14 +119,21 @@ jobs:
         fi
 
         CHART_NAME=$(basename "$CHART_LOCATION")
-        CHART_DIR=$CLOUDBEES_WORKSPACE/helm-chart
+        CHART_DIR=$CLOUDBEES_WORKSPACE/charts
         mkdir -p $CHART_DIR
+
         echo "Pulling Helm chart from $CHART_LOCATION into $CHART_DIR"
         helm pull "$CHART_LOCATION" \
           --version "$CHART_VERSION" \
           --untar --untardir $CHART_DIR
 
-        
+        #Verify that the chart was extracted into the expected location
+        if [ -d "$CHART_DIR/$CHART_NAME" ]; then
+          echo "✅️ Helm chart extracted to $CHART_DIR/$CHART_NAME."
+          printf %s "$CHART_DIR/$CHART_NAME" > $CLOUDBEES_OUTPUTS/chart-location
+        else
+          echo "❌ Helm chart failed to be retrieved and extracted to $CHART_DIR/$CHART_NAME"
+        fi        
             
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install@v1
@@ -136,7 +144,7 @@ jobs:
         values-files: ${{ inputs.values-files }}
         values: ${{ inputs.values }}
         timeout: ${{ inputs.timeout }}
-        chart-location: $CLOUDBEES_WORKSPACE/helm-chart
+        chart-location: ${{ steps.get-helm-chart.outputs.chart-location }}
         max-history: ${{ inputs.max-history }}
         debug: ${{ inputs.debug }}
         dependency-build: ${{ inputs.dependency-build }}
