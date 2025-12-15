@@ -78,6 +78,15 @@ jobs:
       HELM_DEBUG: ${{ inputs.debug == 'true' && 'true' || 'false' }}
       CLOUDBEES_REGISTRIES_CONFIG: ${{ inputs.registry-configuration }}
     steps:
+    - name: Login to AWS
+      uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
+      with:
+        aws-region: us-east-1
+        role-to-assume: arn:aws:iam::020229604682:role/preprod-cloudbees-infra-mgmt
+        role-duration-seconds: "3600"
+    - uses: cloudbees-io/configure-eks-credentials@v1
+      with:
+        name: eks-preprod-us-east-1  
     - name: Get Helm chart
       id: get-helm-chart
       uses: docker://public.ecr.aws/l7o7z1g8/actions/helm-install-action:e0a374369133dba712a5239a3b78bb34c7828cc1
