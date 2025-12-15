@@ -85,7 +85,7 @@ jobs:
       uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
       with:
         aws-region: us-east-1
-        role-to-assume: arn:aws:iam::020229604682:role/preprod-cloudbees-infra-mgmt
+        role-to-assume: arn:aws:iam::020229604682:role/cloudbees-infra-mgmt
         role-duration-seconds: "3600"
     - uses: cloudbees-io/configure-eks-credentials@v1
       with:
