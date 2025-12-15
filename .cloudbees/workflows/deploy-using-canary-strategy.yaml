@@ -90,65 +90,8 @@ jobs:
     - uses: cloudbees-io/configure-eks-credentials@v1
       with:
         name: eks-preprod-us-east-1  
-    - name: Get Helm chart
-      id: get-helm-chart
-      uses: docker://public.ecr.aws/l7o7z1g8/actions/helm-install-action:e0a374369133dba712a5239a3b78bb34c7828cc1
-      run: |
-        set -uox pipefail
-
-        resolved_registries="/tmp/resolved_registries.out"
-
-        if echo "${CHART_LOCATION}" | grep -q '^oci://'; then
-          if [ "${CLOUDBEES_REGISTRIES_CONFIG}" ]; then
-            chart_location=$(echo -n "${CHART_LOCATION}" | sed 's|^oci://||')
-            registry-config --config "${CLOUDBEES_REGISTRIES_CONFIG}" resolve "${chart_location}" ${resolved_registries}
-            echo "Resolved registries: $(cat ${resolved_registries})"
-          fi
-        fi
-
-        if [ "$ENV_FILE" ]; then
-          source "$ENV_FILE"
-        fi
-
-        if [ -s "${resolved_registries}" ]; then
-          findChartInMirrors() {
-            while IFS= read -r chart_location
-            do
-              chart_location=oci://$(echo "$chart_location" | awk -F':' '{print $1}') # strip the tag
-              echo "Verifying chart location: $chart_location by running helm show"
-              if helm show chart "$chart_location" --version "$CHART_VERSION"; then
-                echo "Setting chart location to $chart_location"
-                export CHART_LOCATION="$chart_location"
-                return 0
-              fi
-            done < "${resolved_registries}"
-
-            echo "Failed to find chart in any of the configured registry mirrors" >&2
-            exit 1
-          }
-
-          findChartInMirrors
-        fi
-
-        CHART_NAME=$(basename "$CHART_LOCATION")
-        CHART_DIR=$CLOUDBEES_WORKSPACE/charts
-        mkdir -p $CHART_DIR
-
-        echo "Pulling Helm chart from $CHART_LOCATION into $CHART_DIR"
-        helm pull "$CHART_LOCATION" \
-          --version "$CHART_VERSION" \
-          --untar --untardir $CHART_DIR
-
-        #Verify that the chart was extracted into the expected location
-        if [ -d "$CHART_DIR/$CHART_NAME" ]; then
-          echo "✅️ Helm chart extracted to $CHART_DIR/$CHART_NAME."
-          printf %s "$CHART_DIR/$CHART_NAME" > $CLOUDBEES_OUTPUTS/chart-location
-        else
-          echo "❌ Helm chart failed to be retrieved and extracted to $CHART_DIR/$CHART_NAME"
-        fi        
-            
     - name: Deploy Helm chart
-      uses: cloudbees-io/helm-install@v1
+      uses: cloudbees-io/helm-install@argo-rollout
       with:
         release-name: ${{ inputs.release-name }}
         namespace: ${{ inputs.namespace }}
