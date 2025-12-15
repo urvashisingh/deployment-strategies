@@ -67,19 +67,6 @@ jobs:
     permissions:
       scm-token-own: read
       id-token: write
-    env:
-      CHART_LOCATION: ${{ inputs.chart-location }}
-      CHART_VERSION: ${{ inputs.version }}
-      RELEASE_NAME: ${{ inputs.release-name }}
-      VALUES_FILES: ${{ inputs.values-files }}
-      VALUES_INLINE: ${{ inputs.values }}
-      ENV_FILE: ${{ inputs.env-vars-file }}
-      BUILD_DEPENDENCIES: ${{ inputs.dependency-build }}
-      TIMEOUT: ${{ inputs.timeout }}
-      HELM_NAMESPACE: ${{ inputs.namespace }}
-      HELM_MAX_HISTORY: ${{ inputs.max-history }}
-      HELM_DEBUG: ${{ inputs.debug == 'true' && 'true' || 'false' }}
-      CLOUDBEES_REGISTRIES_CONFIG: ${{ inputs.registry-configuration }}
     steps:
     - name: Login to AWS
       uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
@@ -99,7 +86,7 @@ jobs:
         values-files: ${{ inputs.values-files }}
         values: ${{ inputs.values }}
         timeout: ${{ inputs.timeout }}
-        chart-location: ${{ steps.get-helm-chart.outputs.chart-location }}
+        chart-location: ${{ inputs.chart-location }}
         max-history: ${{ inputs.max-history }}
         debug: ${{ inputs.debug }}
         dependency-build: ${{ inputs.dependency-build }}
