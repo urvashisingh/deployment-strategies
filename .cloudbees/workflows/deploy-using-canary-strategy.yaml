@@ -117,12 +117,15 @@ jobs:
           findChartInMirrors
         fi
 
-        mkdir -p $CLOUDBEES_WORKSPACE/helm-chart
-        echo "Pulling Helm chart from $CHART_LOCATION into $CLOUDBEES_WORKSPACE/helm-chart"
+        CHART_NAME=$(basename "$CHART_LOCATION")
+        CHART_DIR=$CLOUDBEES_WORKSPACE/helm-chart
+        mkdir -p $CHART_DIR
+        echo "Pulling Helm chart from $CHART_LOCATION into $CHART_DIR"
         helm pull "$CHART_LOCATION" \
           --version "$CHART_VERSION" \
-          --untar true \
-          --untardir $CLOUDBEES_WORKSPACE/helm-chart
+          --untar --untardir $CHART_DIR
+
+        
             
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install@v1
