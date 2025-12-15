@@ -64,6 +64,9 @@ on:
         
 jobs:
   deploy:
+    permissions:
+      scm-token-own: read
+      id-token: write
     env:
       CHART_LOCATION: ${{ inputs.chart-location }}
       CHART_VERSION: ${{ inputs.version }}
