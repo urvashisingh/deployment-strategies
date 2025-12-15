@@ -81,7 +81,7 @@ jobs:
     - name: Get Helm chart
       uses: docker://public.ecr.aws/l7o7z1g8/actions/helm-install-action:e0a374369133dba712a5239a3b78bb34c7828cc1
       run: |
-        set -uo pipefail
+        set -uox pipefail
 
         resolved_registries="/tmp/resolved_registries.out"
 
