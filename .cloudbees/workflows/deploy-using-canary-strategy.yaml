@@ -105,7 +105,7 @@ jobs:
         name: eks-preprod-us-east-1  
 
     - name: Deploy Helm chart
-      uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
+      uses: cloudbees-io/helm-install@v1
       with:
         release-name: ${{ inputs.release-name }}
         namespace: ${{ inputs.namespace }}
