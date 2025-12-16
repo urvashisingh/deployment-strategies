@@ -42,6 +42,8 @@ on:
         description: Simulate an upgrade, without actually doing it
         type: boolean
         default: false
+      aws-role-to-assume:
+        type: string  
         
   workflow_call:
     inputs:
@@ -82,6 +84,9 @@ on:
         description: Simulate an upgrade, without actually doing it
         type: boolean
         default: false
+      aws-role-to-assume:
+        type: string
+
         
 jobs:
   deploy:
@@ -93,7 +98,7 @@ jobs:
       uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
       with:
         aws-region: us-east-1
-        role-to-assume: arn:aws:iam::020229604682:role/cloudbees-infra-mgmt
+        role-to-assume: ${{ inputs.aws-role-to-assume }}
         role-duration-seconds: "3600"
     - uses: cloudbees-io/configure-eks-credentials@v1
       with:
