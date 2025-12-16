@@ -99,7 +99,7 @@ jobs:
       RELEASE_NAME: ${{ inputs.release-name }}
       VALUES_FILES: ${{ inputs.values-files }}
       VALUES_INLINE: ${{ inputs.values }}
-      ENV_FILE: ${{ inputs.env-vars-file }}
+      ENV_FILE: ''
       TIMEOUT: ${{ inputs.timeout }}
       HELM_NAMESPACE: ${{ inputs.namespace }}
       HELM_MAX_HISTORY: ''
