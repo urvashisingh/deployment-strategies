@@ -108,7 +108,7 @@ jobs:
         repository: https://github.com/urvashisingh/deployment-strategies 
 
     - name: Deploy Helm chart
-      uses: cloudbees-io/helm-install@v1
+      uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
       with:
         release-name: ${{ inputs.release-name }}
         namespace: ${{ inputs.namespace }}
