@@ -116,7 +116,7 @@ jobs:
         values-files: ${{ inputs.values-files }}
         values: ${{ inputs.values }}
         timeout: ${{ inputs.timeout }}
-        chart-location: $CLOUDBEES_WORKSPACE/deployment-strategies/examples/helm-canary
+        chart-location: ./deployment-strategies/examples/helm-canary
         debug: ${{ inputs.debug }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
