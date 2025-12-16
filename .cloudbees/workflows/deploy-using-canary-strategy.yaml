@@ -3,6 +3,50 @@ apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
 
 on:
+  workflow_dispatch:
+    inputs:
+      release-name:
+        description: Helm release name
+        type: string
+        required: true
+      namespace:
+        description: Kubernetes namespace to install the chart in, created if missing
+        type: string
+        default: default
+      version:
+        description: Version of the chart to be installed
+        type: string
+      values-files:
+        description: List of values files relative to the workspace separated by newline
+        type: string
+      values:
+        description: An inline YAML representation of a values file passed to the Helm command
+        type: string
+      timeout:
+        description: |
+          Helm chart installation timeout.
+          However, `Deployment.spec.progressDeadlineSeconds` takes precedence if it is defined with a lower value within the charts manifests.
+        type: string
+        default: 10m
+      chart-location:
+        description: >
+          Helm chart location, can be a URL, a local chart archive,
+          chart repo alias/chart name or an unpacked chart directory
+        type: string
+        required: true
+      max-history:
+        description: MaxHistory limits the maximum number of revisions saved per release
+        type: number
+        default: 10
+      debug:
+        description: Execute the helm command in debug mode
+        type: boolean
+        default: false
+      dry-run:
+        description: Simulate an upgrade, without actually doing it
+        type: boolean
+        default: false
+
   workflow_call:
     inputs:
       release-name:
@@ -89,8 +133,5 @@ jobs:
         chart-location: ${{ inputs.chart-location }}
         max-history: ${{ inputs.max-history }}
         debug: ${{ inputs.debug }}
-        dependency-build: ${{ inputs.dependency-build }}
-        env-vars-file: ${{ inputs.env-vars-file }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
-        registry-configuration: ${{ inputs.registry-configuration }}
