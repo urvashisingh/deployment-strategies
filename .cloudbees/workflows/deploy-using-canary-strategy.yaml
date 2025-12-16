@@ -100,7 +100,6 @@ jobs:
       VALUES_FILES: ${{ inputs.values-files }}
       VALUES_INLINE: ${{ inputs.values }}
       ENV_FILE: ${{ inputs.env-vars-file }}
-      BUILD_DEPENDENCIES: ${{ inputs.dependency-build }}
       TIMEOUT: ${{ inputs.timeout }}
       HELM_NAMESPACE: ${{ inputs.namespace }}
       HELM_MAX_HISTORY: ${{ inputs.max-history }}
