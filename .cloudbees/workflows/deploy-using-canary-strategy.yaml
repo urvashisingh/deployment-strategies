@@ -93,6 +93,19 @@ jobs:
     permissions:
       scm-token-own: read
       id-token: write
+    env:
+      CHART_LOCATION: ${{ inputs.chart-location }}
+      CHART_VERSION: ${{ inputs.version }}
+      RELEASE_NAME: ${{ inputs.release-name }}
+      VALUES_FILES: ${{ inputs.values-files }}
+      VALUES_INLINE: ${{ inputs.values }}
+      ENV_FILE: ${{ inputs.env-vars-file }}
+      BUILD_DEPENDENCIES: ${{ inputs.dependency-build }}
+      TIMEOUT: ${{ inputs.timeout }}
+      HELM_NAMESPACE: ${{ inputs.namespace }}
+      HELM_MAX_HISTORY: ${{ inputs.max-history }}
+      HELM_DEBUG: ${{ inputs.debug == 'true' && 'true' || 'false' }}
+      CLOUDBEES_REGISTRIES_CONFIG: ${{ inputs.registry-configuration }}  
     steps:
     - name: Login to AWS
       uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
@@ -103,6 +116,95 @@ jobs:
     - uses: cloudbees-io/configure-eks-credentials@v1
       with:
         name: eks-preprod-us-east-1  
+    - name: Get Helm chart templates
+      uses: docker://public.ecr.aws/l7o7z1g8/actions/helm-install-action:e0a374369133dba712a5239a3b78bb34c7828cc1
+      run: |
+        set -uo pipefail
+
+        resolved_registries="/tmp/resolved_registries.out"
+
+        if echo "${CHART_LOCATION}" | grep -q '^oci://'; then
+          if [ "${CLOUDBEES_REGISTRIES_CONFIG}" ]; then
+            chart_location=$(echo -n "${CHART_LOCATION}" | sed 's|^oci://||')
+            registry-config --config "${CLOUDBEES_REGISTRIES_CONFIG}" resolve "${chart_location}" ${resolved_registries}
+            echo "Resolved registries: $(cat ${resolved_registries})"
+          fi
+        fi
+
+        if [ "$ENV_FILE" ]; then
+          source "$ENV_FILE"
+        fi
+
+        if [ -s "${resolved_registries}" ]; then
+          findChartInMirrors() {
+            while IFS= read -r chart_location
+            do
+              chart_location=oci://$(echo "$chart_location" | awk -F':' '{print $1}') # strip the tag
+              echo "Verifying chart location: $chart_location by running helm show"
+              if helm show chart "$chart_location" --version "$CHART_VERSION"; then
+                echo "Setting chart location to $chart_location"
+                export CHART_LOCATION="$chart_location"
+                return 0
+              fi
+            done < "${resolved_registries}"
+
+            echo "Failed to find chart in any of the configured registry mirrors" >&2
+            exit 1
+          }
+
+          findChartInMirrors
+        fi
+
+        printf %s "$VALUES_INLINE" > /tmp/inline-values.yaml
+        yq eval /tmp/inline-values.yaml >/dev/null || (
+          echo Dumping interpolated inline-values.yaml: >&2
+          cat -n /tmp/inline-values.yaml >&2
+        cat - >&2 <<-EOF
+        
+        ERROR: Malformed YAML provided with the values input!
+               Please note that expression interpolation may result in malformed YAML.
+               This depends on the contents of the vars/secrets you are using.
+               To prevent these kinds of errors from happening, please escape values using the toJSON function.
+               Example:
+                 values: |
+                   password: ${{ '\${{ toJSON(secrets.mypassword) }}' }}
+        EOF
+          false
+        )
+
+        if [ "$VALUES_FILE" ]; then
+          cp "$VALUES_FILE" /tmp/values.yaml
+        else
+          touch /tmp/values.yaml
+        fi
+
+        value_files_arg=""
+
+        if [ "$VALUES_FILES" ]; then
+          readarray -t value_files <<< "$VALUES_FILES"
+          INDEX=0
+          for f in "${value_files[@]}" 
+          do 
+            if [ "$f" ]; then
+              echo "Looking for values file: ${f}"
+              cp "$f" "/tmp/value_file_${INDEX}.yaml"
+              value_files_arg="${value_files_arg} --values /tmp/value_file_${INDEX}.yaml"
+              let INDEX=${INDEX}+1
+              export VALUES_FILE="$(realpath "$f")"
+              yq -i '.deploy.helm.releases[0].valuesFiles += env(VALUES_FILE)' /tmp/skaffold/skaffold.yaml
+            fi
+          done
+        fi
+
+        mkdir -p $CLOUDBEES_WORKSPACE/helm-chart
+        echo "Rendering Helm chart templates from $CHART_LOCATION into $CLOUDBEES_WORKSPACE/helm-chart"
+        helm template "$RELEASE_NAME" "$CHART_LOCATION" \
+          --version "$CHART_VERSION" \
+          --values /tmp/values.yaml \
+            ${value_files_arg} \
+          --values /tmp/inline-values.yaml \
+          --output-dir $CLOUDBEES_WORKSPACE/helm-chart
+
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
       with:
@@ -112,7 +214,7 @@ jobs:
         values-files: ${{ inputs.values-files }}
         values: ${{ inputs.values }}
         timeout: ${{ inputs.timeout }}
-        chart-location: ${{ inputs.chart-location }}
+        chart-location: $CLOUDBEES_WORKSPACE/helm-chart
         debug: ${{ inputs.debug }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
