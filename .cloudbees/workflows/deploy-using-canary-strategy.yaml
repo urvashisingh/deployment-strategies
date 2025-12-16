@@ -103,7 +103,7 @@ jobs:
     - uses: cloudbees-io/configure-eks-credentials@v1
       with:
         name: eks-preprod-us-east-1  
-    - uses: cloudbees-io/checkout@v2
+    - uses: cloudbees-io/checkout@v1
       with:
         repository: https://github.com/urvashisingh/deployment-strategies 
 
