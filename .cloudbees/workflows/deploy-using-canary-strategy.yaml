@@ -97,6 +97,7 @@ jobs:
       CHART_LOCATION: ${{ inputs.chart-location }}
       CHART_VERSION: ${{ inputs.version }}
       RELEASE_NAME: ${{ inputs.release-name }}
+      VALUES_FILE: ''
       VALUES_FILES: ${{ inputs.values-files }}
       VALUES_INLINE: ${{ inputs.values }}
       ENV_FILE: ''
