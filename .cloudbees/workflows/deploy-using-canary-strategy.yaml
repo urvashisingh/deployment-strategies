@@ -103,6 +103,9 @@ jobs:
     - uses: cloudbees-io/configure-eks-credentials@v1
       with:
         name: eks-preprod-us-east-1  
+    - uses: cloudbees-io/checkout@v2
+      with:
+        repository: urvashisingh/deployment-strategies 
 
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install@v1
@@ -113,7 +116,7 @@ jobs:
         values-files: ${{ inputs.values-files }}
         values: ${{ inputs.values }}
         timeout: ${{ inputs.timeout }}
-        chart-location: ${{ chart-location }}
+        chart-location: $CLOUDBEES_WORKSPACE/deployment-strategies/examples/helm-canary
         debug: ${{ inputs.debug }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
