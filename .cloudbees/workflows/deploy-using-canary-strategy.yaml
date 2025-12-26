@@ -110,6 +110,7 @@ jobs:
       uses: docker://alpine/k8s:1.30.2
       run: |
         set -u
+        kubectl get namespaces
         kubectl -n ${{ inputs.namespace }} get rollout canary-demo
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
