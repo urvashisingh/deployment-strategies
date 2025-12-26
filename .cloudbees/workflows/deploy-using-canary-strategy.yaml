@@ -16,9 +16,6 @@ on:
       version:
         description: Version of the chart to be installed
         type: string
-      values-files:
-        description: List of values files relative to the workspace separated by newline
-        type: string
       values:
         description: An inline YAML representation of a values file passed to the Helm command
         type: string
@@ -57,9 +54,6 @@ on:
         default: default
       version:
         description: Version of the chart to be installed
-        type: string
-      values-files:
-        description: List of values files relative to the workspace separated by newline
         type: string
       values:
         description: An inline YAML representation of a values file passed to the Helm command
@@ -112,13 +106,15 @@ jobs:
         set -u
         kubectl get namespaces
         kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
+        echo "${{ inputs.values }}" > /tmp/values.yaml
+        cat /tmp/values.yaml
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
       with:
         release-name: ${{ inputs.release-name }}
         namespace: ${{ inputs.namespace }}
         version: ${{ inputs.version }}
-        values-files: ${{ inputs.values-files }}
+        values-files: /tmp/values.yaml
         values: ${{ inputs.values }}
         timeout: ${{ inputs.timeout }}
         chart-location: ./examples/helm-canary
