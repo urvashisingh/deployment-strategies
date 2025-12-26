@@ -111,7 +111,7 @@ jobs:
       run: |
         set -u
         kubectl get namespaces
-        kubectl -n ${{ inputs.namespace }} get rollouts
+        kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
       with:
@@ -125,3 +125,9 @@ jobs:
         debug: ${{ inputs.debug }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
+    - name: Get Rollout after
+      uses: docker://alpine/k8s:1.30.2
+      run: |
+        set -u
+        kubectl get namespaces
+        kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
