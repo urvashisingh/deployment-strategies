@@ -126,5 +126,5 @@ jobs:
       run: |
         set -u
         kubectl -n ${{ inputs.namespace }} get pods
-        #kubectl -n ${{ inputs.namespace }} describe pod 
+        kubectl -n ${{ inputs.namespace }} describe pod argo-rollout-helm-guestbook-77c5d6cdb6-ctnsj
         kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
