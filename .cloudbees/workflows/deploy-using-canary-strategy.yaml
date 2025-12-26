@@ -111,7 +111,7 @@ jobs:
       run: |
         set -u
         kubectl get namespaces
-        kubectl -n ${{ inputs.namespace }} get rollout canary-demo
+        kubectl -n ${{ inputs.namespace }} get rollouts
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
       with:
