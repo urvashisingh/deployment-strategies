@@ -120,3 +120,8 @@ jobs:
         debug: ${{ inputs.debug }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
+    - name: Get Rollout
+      uses: docker://alpine/k8s:1.30.2
+      run: |
+        set -u
+        kubectl -n ${{ inputs.namespace }} get rollout canary-demo
