@@ -129,5 +129,6 @@ jobs:
       uses: docker://alpine/k8s:1.30.2
       run: |
         set -u
-        kubectl get namespaces
+        kubectl -n ${{ inputs.namespace }} get pods
+        #kubectl -n ${{ inputs.namespace }} describe pod 
         kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
