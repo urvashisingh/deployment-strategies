@@ -106,7 +106,11 @@ jobs:
     - uses: cloudbees-io/checkout@v1
       with:
         repository: https://github.com/urvashisingh/deployment-strategies 
-
+    - name: Get Rollout
+      uses: docker://alpine/k8s:1.30.2
+      run: |
+        set -u
+        kubectl -n ${{ inputs.namespace }} get rollout canary-demo
     - name: Deploy Helm chart
       uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
       with:
@@ -120,8 +124,3 @@ jobs:
         debug: ${{ inputs.debug }}
         wait: true
         dry-run: ${{ inputs.dry-run }}
-    - name: Get Rollout
-      uses: docker://alpine/k8s:1.30.2
-      run: |
-        set -u
-        kubectl -n ${{ inputs.namespace }} get rollout canary-demo
