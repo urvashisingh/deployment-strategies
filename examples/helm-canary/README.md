@@ -12,25 +12,21 @@ with the Helm package manager you can perform Progressive Delivery deployments w
 To deploy the first version of your application:
 
 ```
-git clone https://github.com/argoproj/argo-rollouts.git
-cd argo-rollouts/examples
-helm install example ./helm-canary/
+git clone https://github.com/urvashisingh/deployment-strategies
+cd deployment-strategies/examples
+helm install --create-namespace -n <namespace> example ./helm-canary/  --set image.tag=yellow
 ```
-
-Your application will be deployed and exposed via the `example-helm-guestbook` service
 
 ## Perform the second deployment
 
-To deploy the updated version using a Blue/Green strategy:
+To deploy the updated version using Canary strategy:
 
 ```
-helm upgrade example ./helm-canary/  --set image.tag=0.2
+helm upgrade --create-namespace  --install -n <namespace> example ./helm-canary/  --set image.tag=blue
 ```
 
-Now, two versions will exist in your cluster (and each one has an associated service)
-
 ```
-kubectl-argo-rollouts get rollout example-helm-guestbook
+kubectl-argo-rollouts get rollout example-canary-demo -n <namespace>
 ```
 
 ## Promoting the rollout
@@ -38,7 +34,7 @@ kubectl-argo-rollouts get rollout example-helm-guestbook
 To advance the rollout and make the new version stable
 
 ```
-kubectl-argo-rollouts promote example-helm-guestbook
+kubectl-argo-rollouts promote example-canary-demo -n <namespace>
 ```
 
-This promotes container image `ks-guestbook-demo:0.2` to `green` status and `Rollout` deletes old replica which runs `ks-guestbook-demo:0.1`.
+This promotes container image `argoproj/rollouts-demo` to `blue` status and `Rollout` deletes old replica which runs `argoproj/rollouts-demo:yellow`.
