@@ -1,7 +1,6 @@
 name: deploy using canary strategy
 apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
-
 on:
   workflow_dispatch:
     inputs:
@@ -26,9 +25,8 @@ on:
         type: string
         default: 10m
       chart-location:
-        description: >
-          Helm chart location, can be a URL, a local chart archive,
-          chart repo alias/chart name or an unpacked chart directory
+        description: |
+          Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
         type: string
         required: true
       debug:
@@ -40,8 +38,7 @@ on:
         type: boolean
         default: false
       aws-role-to-assume:
-        type: string  
-        
+        type: string
   workflow_call:
     inputs:
       release-name:
@@ -65,9 +62,8 @@ on:
         type: string
         default: 10m
       chart-location:
-        description: >
-          Helm chart location, can be a URL, a local chart archive,
-          chart repo alias/chart name or an unpacked chart directory
+        description: |
+          Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
         type: string
         required: true
       debug:
@@ -80,51 +76,46 @@ on:
         default: false
       aws-role-to-assume:
         type: string
-
-        
 jobs:
   deploy:
-    permissions:
-      scm-token-own: read
-      id-token: write
     steps:
-    - name: Login to AWS
-      uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
-      with:
-        aws-region: ${{ vars.argo_rollout_cluster_region }}
-        role-to-assume: ${{ vars.argo_rollout_staging_iam_role }}
-        role-duration-seconds: "3600"
-    - uses: cloudbees-io/configure-eks-credentials@v1
-      with:
-        name: ${{ vars.argo_rollout_east_cluster_name }}  
-    - uses: cloudbees-io/checkout@v1
-      with:
-        repository: https://github.com/urvashisingh/deployment-strategies 
-    - name: Get Rollout
-      uses: docker://alpine/k8s:1.30.2
-      run: |
-        set -u
-        kubectl get namespaces
-        kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
-        echo "${{ inputs.values }}" > /tmp/values.yaml
-        cat /tmp/values.yaml
-    - name: Deploy Helm chart
-      uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
-      with:
-        release-name: ${{ inputs.release-name }}
-        namespace: ${{ inputs.namespace }}
-        version: ${{ inputs.version }}
-        values-files: /tmp/values.yaml
-        values: ${{ inputs.values }}
-        timeout: ${{ inputs.timeout }}
-        chart-location: ./examples/helm-canary
-        debug: ${{ inputs.debug }}
-        wait: true
-        dry-run: ${{ inputs.dry-run }}
-    - name: Get Rollout after
-      uses: docker://alpine/k8s:1.30.2
-      run: |
-        set -u
-        kubectl -n ${{ inputs.namespace }} get pods
-        kubectl -n ${{ inputs.namespace }} describe pod argo-rollout-helm-guestbook-77c5d6cdb6-ctnsj
-        kubectl -n ${{ inputs.namespace }} get rollout argo-rollout-helm-guestbook
+      - name: Login to AWS
+        uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ vars.argo_rollout_cluster_region }}
+          role-to-assume: ${{ vars.argo_rollout_staging_iam_role }}
+          role-duration-seconds: "3600"
+      - uses: cloudbees-io/configure-eks-credentials@v1
+        with:
+          name: ${{ vars.argo_rollout_east_cluster_name }}
+      - uses: cloudbees-io/checkout@v1
+        with:
+          repository: https://github.com/urvashisingh/deployment-strategies
+      - name: Get Rollout
+        uses: docker://alpine/k8s:1.30.2
+        run: |
+          set -u
+          kubectl get namespaces
+          kubectl -n ${{ inputs.namespace }} get rollouts
+          echo "${{ inputs.values }}" > /tmp/values.yaml
+          cat /tmp/values.yaml
+      - name: Deploy Helm chart
+        uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
+        with:
+          release-name: ${{ inputs.release-name }}
+          namespace: ${{ inputs.namespace }}
+          values-files: /tmp/values.yaml
+          values: ${{ inputs.values }}
+          timeout: ${{ inputs.timeout }}
+          chart-location: ${{ inputs.chart-location }}
+          debug: ${{ inputs.debug }}
+          wait: true
+          dry-run: ${{ inputs.dry-run }}
+      - name: Get Rollout after
+        uses: docker://alpine/k8s:1.30.2
+        run: |
+          set -u
+          kubectl -n ${{ inputs.namespace }} get rollouts
+          kubectl -n ${{ inputs.namespace }} get rollout ${{ inputs.release-name }}-canary-demo
+      - name: Checkout
+        uses: cloudbees-io/checkout@v1
