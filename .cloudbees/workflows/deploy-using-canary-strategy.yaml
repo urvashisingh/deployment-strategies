@@ -13,10 +13,7 @@ on:
         type: string
         default: default
       version:
-        description: Version of the chart to be installed
-        type: string
-      values:
-        description: An inline YAML representation of a values file passed to the Helm command
+        description: Version of the service to be installed
         type: string
       timeout:
         description: |
@@ -50,10 +47,7 @@ on:
         type: string
         default: default
       version:
-        description: Version of the chart to be installed
-        type: string
-      values:
-        description: An inline YAML representation of a values file passed to the Helm command
+        description: Version of the service to be installed
         type: string
       timeout:
         description: |
@@ -78,6 +72,7 @@ on:
         type: string
 jobs:
   deploy:
+    
     steps:
       - name: Login to AWS
         uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
@@ -91,14 +86,17 @@ jobs:
       - uses: cloudbees-io/checkout@v1
         with:
           repository: https://github.com/urvashisingh/deployment-strategies
-      - name: Get Rollout
+      - name: Create values.yaml with service version
         uses: docker://alpine/k8s:1.30.2
         run: |
           set -u
+          echo "image:" > /tmp/values.yaml
+          echo "  tag: ${{ inputs.version }}" > /tmp/values.yaml
+          cat /tmp/values.yaml
+          echo "Debug:"
           kubectl get namespaces
           kubectl -n ${{ inputs.namespace }} get rollouts
-          echo "${{ inputs.values }}" > /tmp/values.yaml
-          cat /tmp/values.yaml
+          
       - name: Deploy Helm chart
         uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
         with:
