@@ -72,7 +72,8 @@ on:
         type: string
 jobs:
   deploy:
-    
+    permissions:
+      id-token: write
     steps:
       - name: Login to AWS
         uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
@@ -103,7 +104,6 @@ jobs:
           release-name: ${{ inputs.release-name }}
           namespace: ${{ inputs.namespace }}
           values-files: /tmp/values.yaml
-          values: ${{ inputs.values }}
           timeout: ${{ inputs.timeout }}
           chart-location: ${{ inputs.chart-location }}
           debug: ${{ inputs.debug }}
