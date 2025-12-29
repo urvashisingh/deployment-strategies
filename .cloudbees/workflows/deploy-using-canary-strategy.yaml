@@ -94,8 +94,14 @@ jobs:
           echo "image:" > /tmp/values.yaml
           echo "  tag: ${{ inputs.version }}" >> /tmp/values.yaml
           cat /tmp/values.yaml
+      - name: K8S cluster details
+        uses: docker://alpine/k8s:1.30.2
+        run: |
+          set -u
+          kubectl version
+          kubectl cluster-info
       - name: Deploy Helm chart
-        uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
+        uses: cloudbees-io/helm-install@v1
         with:
           release-name: ${{ inputs.release-name }}
           namespace: ${{ inputs.namespace }}
