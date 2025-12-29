@@ -92,12 +92,8 @@ jobs:
         run: |
           set -u
           echo "image:" > /tmp/values.yaml
-          echo "  tag: ${{ inputs.version }}" > /tmp/values.yaml
+          echo "  tag: ${{ inputs.version }}" >> /tmp/values.yaml
           cat /tmp/values.yaml
-          echo "Debug:"
-          kubectl get namespaces
-          kubectl -n ${{ inputs.namespace }} get rollouts
-          
       - name: Deploy Helm chart
         uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
         with:
