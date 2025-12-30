@@ -121,6 +121,8 @@ jobs:
         run: |
           set -u
           progressing=true
+          request_approval=false
+          status=""
 
           while $progressing; do
             sleep 10
@@ -130,23 +132,22 @@ jobs:
 
             if [[ "$status" == "Healthy" ]]; then
               progressing=false
-              echo "false" > "$CLOUDBEES_OUTPUTS/request-approval"
-              echo "$status" > "$CLOUDBEES_OUTPUTS/status"
             elif [[ "$status" == "Degraded" ]]; then
-              progressing=false  
-              echo "false" > "$CLOUDBEES_OUTPUTS/request-approval"
-              echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+              progressing=false
             elif [[ "$status" == "Paused" ]]; then
               duration="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} \
                                             -o json | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
               echo "Pause duration: $duration"
               if [[ "duration" == "" || "duration" == "null" ]]; then
                 progressing=false
-                echo "true" > "$CLOUDBEES_OUTPUTS/request-approval"
-                echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+                request_approval=true
               fi                              
             fi
           done
+
+          echo "$request_approval" > "$CLOUDBEES_OUTPUTS/request-approval"
+          echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+
   approve-canary:
     needs: deploy
     if: ${{ needs.deploy.outputs.request-approval }}
