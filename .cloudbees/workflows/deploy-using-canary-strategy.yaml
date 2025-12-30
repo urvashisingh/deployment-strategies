@@ -146,32 +146,41 @@ jobs:
 
           echo "$request_approval" > "$CLOUDBEES_OUTPUTS/request-approval"
           echo "$status" > "$CLOUDBEES_OUTPUTS/status"
-
-  approve-canary:
+  verify-canary:
     needs: deploy
-    if: ${{ needs.deploy.outputs.request-approval }}
     with:
-      instructions: Canary version looks good to promote
+      instructions: Approve
       disallowLaunchByUser: false
       approvers: ""
       notifyAllEligibleUsers: false
+      approvalInputs: |
+        action:
+          type: choice
+          default: promote
+          options:
+            - promote
+            - rollback
+          required: true
+          description: |-
+            Approve with `promote` to continue with the deployment if canary version looks good.
+            Approve with `rollback` to abort the deployment and rollback in case the canary version is not good.
     timeout-minutes: 4320
     delegates: cloudbees-io/manual-approval/custom-job.yml@v1
   promote:
-    if: ${{ success() }}
+    if: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action == 'promote' }}
     steps:
       - uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         run: |
           set -u
           kubectl-argo-rollouts promote ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
     needs:
-      - approve-canary
+      - verify-canary
   rollback:
-    if: ${{ failure() }}
+    if: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action == 'rollback' }}
     steps:
       - uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         run: |
           set -u
           kubectl-argo-rollouts abort ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
     needs:
-      - approve-canary
+      - verify-canary
