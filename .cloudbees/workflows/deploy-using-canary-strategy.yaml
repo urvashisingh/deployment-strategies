@@ -135,10 +135,9 @@ jobs:
             elif [[ "$status" == "Degraded" ]]; then
               progressing=false
             elif [[ "$status" == "Paused" ]]; then
-              duration="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} \
-                                            -o json | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
+              duration="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
               echo "Pause duration: $duration"
-              if [[ "duration" == "" || "duration" == "null" ]]; then
+              if [[ "$duration" == "" || "$duration" == "null" ]]; then
                 progressing=false
                 request_approval=true
               fi                              
