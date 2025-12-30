@@ -124,11 +124,9 @@ jobs:
 
           while $progressing; do
             sleep 10
-            status="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} \
-                                            -o jsonpath='{.status.phase}')"
-
-            echo "Status: $status"
-
+            rollout_output="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} -o json)"
+            status="$(echo "$rollout_output" | jq -r '.status.phase')"
+            echo "Status: $status"                                
 
             if [[ "$status" == "Healthy" ]]; then
               progressing=false
@@ -140,7 +138,7 @@ jobs:
               echo "$status" > "$CLOUDBEES_OUTPUTS/status"
             elif [[ "$status" == "Paused" ]]; then
               duration="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} \
-                                            -o json | jq '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
+                                            -o json | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
               echo "Pause duration: $duration"
               if [[ "duration" == "" || "duration" == "null" ]]; then
                 progressing=false
