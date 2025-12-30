@@ -149,7 +149,9 @@ jobs:
   verify-canary:
     needs: deploy
     with:
-      instructions: Approve
+      instructions: |
+            Approve with `promote` to continue with the deployment if canary version looks good.
+            Approve with `rollback` to abort the deployment and rollback in case the canary version is not good.
       disallowLaunchByUser: false
       approvers: ""
       notifyAllEligibleUsers: false
@@ -161,9 +163,6 @@ jobs:
             - promote
             - rollback
           required: true
-          description: |-
-            Approve with `promote` to continue with the deployment if canary version looks good.
-            Approve with `rollback` to abort the deployment and rollback in case the canary version is not good.
     timeout-minutes: 4320
     delegates: cloudbees-io/manual-approval/custom-job.yml@v1
   promote:
