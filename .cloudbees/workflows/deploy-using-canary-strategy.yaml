@@ -72,6 +72,9 @@ on:
         type: string
 jobs:
   deploy:
+    outputs:
+      request-approval: ${{ steps.rollout.outputs.request-approval }}
+      status: ${{ steps.rollout.outputs.status }}
     permissions:
       scm-token-own: read
       id-token: write
@@ -113,25 +116,40 @@ jobs:
           wait: true
           dry-run: ${{ inputs.dry-run }}
       - name: Watch Rollout progress
+        id: rollout
         uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         run: |
           set -u
-          deploying=true
+          progressing=true
 
-          while $deploying; do
+          while $progressing; do
             sleep 10
-            status="$(kubectl argo rollouts -n ${{ inputs.namespace }} \
+            status="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} \
                                             --namespace="$KUBERNETES_NAMESPACE" \
-                                            get rollout web | \
-                                            grep 'Status' | \
-                                            awk '{print $3}')"
+                                            -o jsonpath='{.status.phase}"
 
             echo "Status: $status"
 
-            if [ "$status" = "Healthy" ]; then
-              deploying=false
+    
+            if [[ "$status" == "Healthy" ]]; then
+              progressing=false
+              echo "false" > "$CLOUDBEES_OUTPUTS/request-approval"
+              echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+            elif [[ "$status" == "Degraded" ]]; then
+              progressing=false  
+              echo "false" > "$CLOUDBEES_OUTPUTS/request-approval"
+              echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+            elif [[ "$status" == "Paused" ]]; then
+              duration="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} \
+                                            --namespace="$KUBERNETES_NAMESPACE" \
+                                            -o json | jq '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
+              echo "Pause duration: $duration"
+              if [[ "duration" == "" || "duration" == "null" ]]; then
+                progressing=false
+                echo "true" > "$CLOUDBEES_OUTPUTS/request-approval"
+                echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+              fi                              
             fi
           done
-          kubectl -n ${{ inputs.namespace }} get rollout ${{ inputs.release-name }}-canary-demo
-      - name: Checkout
-        uses: cloudbees-io/checkout@v1
+          
+
