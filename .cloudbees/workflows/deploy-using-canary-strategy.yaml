@@ -117,7 +117,7 @@ jobs:
           dry-run: ${{ inputs.dry-run }}
       - name: Watch Rollout progress
         id: rollout
-        uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
+        uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
           progressing=true
