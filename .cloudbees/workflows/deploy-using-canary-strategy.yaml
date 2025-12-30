@@ -135,7 +135,7 @@ jobs:
             elif [[ "$status" == "Degraded" ]]; then
               progressing=false
             elif [[ "$status" == "Paused" ]]; then
-              duration="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration'"
+              duration="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration')"
               echo "Pause duration: $duration"
               if [[ "$duration" == "" || "$duration" == "null" ]]; then
                 progressing=false
