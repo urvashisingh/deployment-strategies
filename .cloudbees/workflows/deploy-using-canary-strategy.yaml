@@ -168,4 +168,14 @@ jobs:
         run: |
           set -u
           kubectl-argo-rollouts promote ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
-    needs: promote-canary
+    needs:
+      - approve-canary
+  rollback:
+    if: ${{ failure() }}
+    steps:
+      - uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
+        run: |
+          set -u
+          kubectl-argo-rollouts abort ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
+    needs:
+      - approve-canary
