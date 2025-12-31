@@ -19,3 +19,11 @@
 {{- define "helm-canarydemo.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{- define "helm-canarydemo.pauseDuration" -}}
+{{- if .Values.pauseIndefinitely -}}
+{{- "" -}}
+{{- else -}}
+{{- "10s" -}}
+{{- end -}}
+{{- end -}}
