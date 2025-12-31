@@ -269,21 +269,151 @@ jobs:
           required: true
     timeout-minutes: 4320
     delegates: cloudbees-io/manual-approval/custom-job.yml@v1
-  promote:
-    if: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action == 'promote' }}
+  complete-deployment:
+    needs: verify-canary
+    permissions:
+      scm-token-own: read
+      id-token: write
     steps:
-      - uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
+      - name: Login to AWS
+        uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ vars.argo_rollout_cluster_region }}
+          role-to-assume: ${{ vars.argo_rollout_staging_iam_role }}
+          role-duration-seconds: "3600"
+      - uses: cloudbees-io/configure-eks-credentials@v1
+        with:
+          name: ${{ vars.argo_rollout_east_cluster_name }}
+      - name: Complete rollout
+        uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
+        env:
+          ROLLOUT_ACTION: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action }}
         run: |
           set -u
-          kubectl-argo-rollouts promote ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
-    needs:
-      - verify-canary
-  rollback:
-    if: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action == 'rollback' }}
-    steps:
-      - uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
+          if [ "$ROLLOUT_ACTION" == "promote" ]; then
+            kubectl-argo-rollouts promote ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
+          else
+            kubectl-argo-rollouts abort ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
+          fi
+      - name: Watch Rollout progress
+        id: rollout
+        env:
+          JWT: ${{ cloudbees.api.token }}
+          CB_API_URL: ${{ cloudbees.api.url }}
+          CB_RUN_ID: ${{ cloudbees.run_id }}
+          CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
+          ENVIRONMENT: ${{ inputs.env }}
+        uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
-          kubectl-argo-rollouts abort ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
-    needs:
-      - verify-canary
+
+          function register_deployment() {
+            local artifact_id="95e2ab44-ca32-4105-971e-fb2a0ae80e89" #green
+            local command_failed=0
+
+            #TODO: temporary logic to get artifact_id by version/color
+            case "$1" in
+              "orange")
+                  artifact_id="0e74e808-13dc-4001-a556-2e3f1a015a43"
+                  ;;
+              "yellow")
+                  artifact_id="f81339ee-339a-4f2f-b432-2c47da823557"
+                  ;;
+              "blue")
+                  artifact_id="817d771a-0d47-451d-84c1-7b6b3e0d5e81"
+                  ;;
+              "green")
+                  artifact_id="95e2ab44-ca32-4105-971e-fb2a0ae80e89"
+                  ;;    
+          esac
+
+            PAYLOAD=$(jq --null-input \
+            --arg artifact_id "$artifact_id" \
+            --arg runId "$CB_RUN_ID" \
+            --arg runAttempt "$CB_RUN_ATTEMPT" \
+            --arg environment "$ENVIRONMENT" \
+            '{"runId": $runId, "runAttempt": $runAttempt, "artifact_id": $artifact_id, "environment": $environment}')
+
+            response=$(curl --silent --show-error --fail-with-body  -X 'POST' "$CB_API_URL/v3/deployments" \
+              -H "Authorization: Bearer $JWT" \
+              -H 'Content-Type: application/json' \
+              -d "$PAYLOAD") || command_failed=1
+
+            if [ ${command_failed:-0} -eq 1 ];
+            then
+              echo "Failed to add deployment for artifact_id: $artifact_id, error: '$response'"
+            fi  
+          }
+
+          function publish_evidence() {
+            local evidence=$1
+            local command_failed=0
+
+            PAYLOAD=$(jq --null-input \
+            --arg evidence "$evidence" \
+            --arg runId "$CB_RUN_ID" \
+            --arg runAttempt "$CB_RUN_ATTEMPT" \
+            '{"runId": $runId, "runAttempt": $runAttempt, "evidence": {"format": "MARKDOWN", "value": $evidence}}')
+
+            response=$(curl --retry 5 --retry-delay 10 --retry-all-errors --silent --show-error --fail-with-body \
+              -X 'POST' "$CB_API_URL/v1/workflows/artifact" \
+              -H "Authorization: Bearer $JWT" \
+              -H 'Content-Type: application/json' \
+              -d "$PAYLOAD") || command_failed=1
+
+            if [ ${command_failed:-0} -eq 1 ];
+            then
+              echo "Failed to publish workflow evidence, error: '$response'"
+            fi
+          }
+
+          progressing=true
+          request_approval=false
+          status=""
+
+          previous_status=""
+          previous_step=""
+          previous_replicas=""
+
+          while $progressing; do
+            sleep 10
+            rollout_output="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} -o json)"
+            status="$(echo "$rollout_output" | jq -r '.status.phase')"
+
+            total_replicas="$(echo "$rollout_output" | jq -r '.spec.replicas')"
+            canary_replicas="$(echo "$rollout_output" | jq -r '.status.updatedReplicas')"
+            total_steps="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps | length')"
+            current_step="$(echo "$rollout_output" | jq -r '.status.currentStepIndex')"
+            
+            # Add 1 to current step for human-friendly display but not if in Healthy because then rollout is complete and current index is at total step count
+            if [[ "$status" != "Healthy" ]]; then
+              current_step=$((current_step + 1))
+            fi
+
+            echo "Status: $status"                                
+
+            if [[ "$status" == "Healthy" ]]; then
+              progressing=false
+            elif [[ "$status" == "Degraded" ]]; then
+              progressing=false
+            elif [[ "$status" == "Paused" ]]; then
+              duration="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration')"
+              echo "Pause duration: $duration"
+              if [[ "$duration" == "" || "$duration" == "null" ]]; then
+                progressing=false
+                request_approval=true
+              fi                              
+            fi
+
+            if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
+              publish_evidence "Version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+            fi
+            previous_status="$status"
+            previous_step="$current_step"
+            previous_replicas="$canary_replicas"
+
+          done
+
+          echo "$request_approval" > "$CLOUDBEES_OUTPUTS/request-approval"
+          echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+  
