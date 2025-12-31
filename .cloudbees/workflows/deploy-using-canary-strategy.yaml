@@ -303,6 +303,7 @@ jobs:
           CB_RUN_ID: ${{ cloudbees.run_id }}
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
+          ROLLOUT_ACTION: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action }}
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
@@ -370,6 +371,7 @@ jobs:
           progressing=true
           request_approval=false
           status=""
+          rollout_output=""
 
           previous_status=""
           previous_step=""
@@ -406,14 +408,43 @@ jobs:
             fi
 
             if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
-              publish_evidence "Version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+              if [ "$ROLLOUT_ACTION" == "promote" ]; then
+                publish_evidence "Version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+              else 
+                publish_evidence "Aborting rollout for version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+              fi
             fi
+            
+
             previous_status="$status"
             previous_step="$current_step"
             previous_replicas="$canary_replicas"
 
           done
 
-          echo "$request_approval" > "$CLOUDBEES_OUTPUTS/request-approval"
-          echo "$status" > "$CLOUDBEES_OUTPUTS/status"
+           if [ "$ROLLOUT_ACTION" == "promote" ]; then
+            if [[ "$status" == "Healthy" ]]; then
+              publish_evidence "Version: ${{ inputs.version }} deployed successfully"
+            elif [[ "$status" == "Degraded" ]]; then
+              publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
+              echo "ERROR: Version: ${{ inputs.version }} deployment failed"
+              echo "$rollout_output"
+              exit -1
+            elif [[ "$status" == "Paused" ]]; then
+              publish_evidence "WARNING: Version: ${{ inputs.version }} deployment is paused indefinitely"
+              exit -1    
+            fi
+          else  
+            if [[ "$status" == "Healthy" ]]; then
+              publish_evidence "Version: ${{ inputs.version }} rolled back"
+            elif [[ "$status" == "Degraded" ]]; then
+              publish_evidence "ERROR: Version: ${{ inputs.version }} roll back failed"
+              echo "ERROR: Version: ${{ inputs.version }} roll back failed"
+              echo "$rollout_output"
+              exit -1
+            elif [[ "$status" == "Paused" ]]; then
+              publish_evidence "WARNING: Version: ${{ inputs.version }} deployment is paused indefinitely"
+              exit -1    
+            fi
+          fi
   
