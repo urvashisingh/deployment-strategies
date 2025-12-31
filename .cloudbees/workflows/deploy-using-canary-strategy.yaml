@@ -214,8 +214,10 @@ jobs:
             canary_replicas="$(echo "$rollout_output" | jq -r '.status.updatedReplicas')"
             total_steps="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps | length')"
             current_step="$(echo "$rollout_output" | jq -r '.status.currentStepIndex')"
-            # Add 1 to current step for human-friendly display
-            current_step=$((current_step + 1))
+            # Add 1 to current step for human-friendly display but not if in Healthy because then rollout is complete and current index is at total step count
+            if [[ "$status" != "Healthy" ]]; then
+              current_step=$((current_step + 1))
+            fi
 
             echo "Status: $status"                                
 
