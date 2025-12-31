@@ -21,9 +21,9 @@
 {{- end -}}
 
 {{- define "helm-canarydemo.pauseDuration" -}}
-{{- if .Values.pauseIndefinitely -}}
-{{- "" -}}
+{{- if not .Values.pauseIndefinitely -}}
+{duration: 10s}
 {{- else -}}
-{{- "10s" -}}
+{}
 {{- end -}}
 {{- end -}}
