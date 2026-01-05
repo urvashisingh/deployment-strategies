@@ -140,6 +140,7 @@ jobs:
           CB_RUN_ID: ${{ cloudbees.run_id }}
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
+          DEBUG: ${{ inputs.debug }}
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
@@ -226,7 +227,10 @@ jobs:
               current_step=$((current_step + 1))
             fi
 
-            echo "Status: $status"                                
+            echo "Status: $status"
+            if [ "$DEBUG" = "true" ]; then
+                echo "Rollout output: $rollout_output"
+            fi
 
             if [[ "$status" == "Healthy" ]]; then
               progressing=false
@@ -311,6 +315,7 @@ jobs:
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
           ROLLOUT_ACTION: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action }}
+          DEBUG: ${{ inputs.debug }}
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
@@ -399,7 +404,10 @@ jobs:
               current_step=$((current_step + 1))
             fi
 
-            echo "Status: $status"                                
+            echo "Status: $status"  
+            if [ "$DEBUG" = "true" ]; then
+                echo "Rollout output: $rollout_output"
+            fi
 
             if [[ "$status" == "Healthy" ]]; then
               progressing=false
