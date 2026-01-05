@@ -17,6 +17,10 @@ on:
         description: Kubernetes namespace to install the chart in, created if missing
         type: string
         default: default
+      cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string  
+        required: true
       version:
         description: Version of the service to be installed
         type: string
@@ -35,12 +39,12 @@ on:
         description: Execute the helm command in debug mode
         type: boolean
         default: false
-      dry-run:
-        description: Simulate an upgrade, without actually doing it
-        type: boolean
-        default: false
+      aws-region:
+        type: string
+        required: true  
       aws-role-to-assume:
         type: string
+        required: true
   workflow_call:
     inputs:
       release-name:
@@ -56,6 +60,10 @@ on:
         description: Kubernetes namespace to install the chart in, created if missing
         type: string
         default: default
+      cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string  
+        required: true  
       version:
         description: Version of the service to be installed
         type: string
@@ -74,12 +82,12 @@ on:
         description: Execute the helm command in debug mode
         type: boolean
         default: false
-      dry-run:
-        description: Simulate an upgrade, without actually doing it
-        type: boolean
-        default: false
+      aws-region:
+        type: string
+        required: true   
       aws-role-to-assume:
         type: string
+        required: true
 jobs:
   deploy:
     outputs:
@@ -92,12 +100,12 @@ jobs:
       - name: Login to AWS
         uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
         with:
-          aws-region: ${{ vars.argo_rollout_cluster_region }}
-          role-to-assume: ${{ vars.argo_rollout_staging_iam_role }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
           role-duration-seconds: "3600"
       - uses: cloudbees-io/configure-eks-credentials@v1
         with:
-          name: ${{ vars.argo_rollout_east_cluster_name }}
+          name: ${{ inputs.cluster }}
       - uses: cloudbees-io/checkout@v1
         with:
           repository: https://github.com/urvashisingh/deployment-strategies
@@ -124,7 +132,6 @@ jobs:
           chart-location: ${{ inputs.chart-location }}
           debug: ${{ inputs.debug }}
           wait: true
-          dry-run: ${{ inputs.dry-run }}
       - name: Watch Rollout progress
         id: rollout
         env:
@@ -278,12 +285,12 @@ jobs:
       - name: Login to AWS
         uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
         with:
-          aws-region: ${{ vars.argo_rollout_cluster_region }}
-          role-to-assume: ${{ vars.argo_rollout_staging_iam_role }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
           role-duration-seconds: "3600"
       - uses: cloudbees-io/configure-eks-credentials@v1
         with:
-          name: ${{ vars.argo_rollout_east_cluster_name }}
+          name: ${{ inputs.cluster }}
       - name: Complete rollout
         uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         env:
