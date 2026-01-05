@@ -245,6 +245,13 @@ jobs:
               fi                              
             fi
 
+            if [[ "$status" == "Degraded" ]]; then
+              publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
+              echo "ERROR: Version: ${{ inputs.version }} deployment failed"
+              echo "$rollout_output"
+              exit -1
+            fi
+          
             # Register deployment if we are getting the status for the first time
             # Else only update the deployment status if there is a change
             if [[ -z "$previous_status" ]]; then
