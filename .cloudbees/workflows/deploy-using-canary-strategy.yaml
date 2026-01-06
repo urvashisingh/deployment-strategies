@@ -117,11 +117,11 @@ jobs:
           echo "  tag: ${{ inputs.version }}" >> /tmp/values.yaml
           cat /tmp/values.yaml
       - name: K8S cluster details
-        uses: docker://alpine/k8s:1.30.2
+        uses: docker://alpine/k8s:1.33.4
         run: |
           set -u
           kubectl version
-          kubectl cluster-info
+          kubectl cluster-info dump
       - name: Deploy Helm chart
         uses: cloudbees-io/helm-install@v1
         with:
@@ -257,6 +257,7 @@ jobs:
               publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "$rollout_output"
+              kubectl get pods -n ${{ inputs.namespace }}
               exit -1
             fi
           
@@ -460,6 +461,7 @@ jobs:
               publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "$rollout_output"
+              kubectl get pods -n ${{ inputs.namespace }}
               exit -1
             elif [[ "$status" == "Paused" ]]; then
               publish_evidence "WARNING: Version: ${{ inputs.version }} deployment is paused indefinitely"

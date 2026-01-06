@@ -1,0 +1,51 @@
+name: get deployment details
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+on:
+  workflow_dispatch:
+    inputs:
+      pod:
+        type: string  
+        required: true
+      namespace:
+        type: string
+        default: default
+      cluster:
+        type: string  
+        required: true
+      aws-region:
+        type: string
+        required: true  
+      aws-role-to-assume:
+        type: string
+        required: true
+jobs:
+  get-pod-details:
+    permissions:
+      scm-token-own: read
+      id-token: write
+    steps:
+      - name: Login to AWS
+        uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          role-duration-seconds: "3600"
+      - uses: cloudbees-io/configure-eks-credentials@v1
+        with:
+          name: ${{ inputs.cluster }}
+      - name: Deployment details
+        uses: docker://alpine/k8s:1.33.4
+        run: |
+          set -u
+          kubectl version
+          kubectl cluster-info
+          
+          #kubectl delete namespace us-argo-rollouts
+          #kubectl delete namespace testns
+          #kubectl delete namespace testns1
+
+          kubectl get namespaces
+          kubectl get pods -A
+          kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
+          kubectl get rollouts -n ${{ inputs.namespace }}
