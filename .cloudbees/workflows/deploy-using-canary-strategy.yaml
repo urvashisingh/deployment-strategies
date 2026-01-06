@@ -122,22 +122,23 @@ jobs:
         uses: docker://alpine/k8s:1.30.2
         run: |
           set -u
-          echo "image:" > /tmp/values.yaml
-          echo "  tag: ${{ needs.get-version.outputs.version }}" >> /tmp/values.yaml
-          echo "pauseIndefinitely: ${{ inputs.pause }}" >> /tmp/values.yaml
-          cat /tmp/values.yaml
+          echo "image:" > $CLOUDBEES_OUTPUTS/values.yaml
+          echo "  tag: ${{ needs.get-version.outputs.version }}" >> $CLOUDBEES_OUTPUTS/values.yaml
+          echo "pauseIndefinitely: ${{ inputs.pause }}" >> $CLOUDBEES_OUTPUTS/values.yaml
+          cat $CLOUDBEES_OUTPUTS/values.yaml
       - name: K8S cluster details
         uses: docker://alpine/k8s:1.33.4
         run: |
           set -u
           kubectl version
           kubectl cluster-info dump
+          cat $CLOUDBEES_OUTPUTS/values.yaml
       - name: Deploy Helm chart
         uses: cloudbees-io/helm-install@v1
         with:
           release-name: ${{ inputs.release-name }}
           namespace: ${{ inputs.namespace }}
-          values-files: /tmp/values.yaml
+          values-files: $CLOUDBEES_OUTPUTS/values.yaml
           timeout: ${{ inputs.timeout }}
           chart-location: ${{ inputs.chart-location }}
           debug: true
