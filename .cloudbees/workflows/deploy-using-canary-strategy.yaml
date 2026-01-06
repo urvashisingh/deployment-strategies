@@ -21,8 +21,8 @@ on:
         description: Kubernetes cluster to install the chart in
         type: string  
         required: true
-      version:
-        description: Version of the service to be installed
+      artifact-id:
+        description: artifact version UUID to be installed
         type: string
       timeout:
         description: |
@@ -64,8 +64,8 @@ on:
         description: Kubernetes cluster to install the chart in
         type: string  
         required: true  
-      version:
-        description: Version of the service to be installed
+      artifact-id:
+        description: Artifact version UUID to be installed
         type: string
       timeout:
         description: |
@@ -89,7 +89,16 @@ on:
         type: string
         required: true
 jobs:
+  get-version:
+    outputs:
+      version: ${{ steps.get-artifact-details.outputs.version }}
+    steps:
+      - id: get-artifact-details
+        uses: cloudbees-io/get-artifact-details@v1
+        with:
+          artifact-id: ${{ inputs.artifact-id }}
   deploy:
+    needs: get-version
     outputs:
       request-approval: ${{ steps.rollout.outputs.request-approval }}
       status: ${{ steps.rollout.outputs.status }}
@@ -114,7 +123,7 @@ jobs:
         run: |
           set -u
           echo "image:" > /tmp/values.yaml
-          echo "  tag: ${{ inputs.version }}" >> /tmp/values.yaml
+          echo "  tag: ${{ needs.get-version.outputs.version }}" >> /tmp/values.yaml
           cat /tmp/values.yaml
       - name: K8S cluster details
         uses: docker://alpine/k8s:1.33.4
@@ -146,25 +155,9 @@ jobs:
           set -u
 
           function register_deployment() {
-            local artifact_id="95e2ab44-ca32-4105-971e-fb2a0ae80e89" #green
+            local artifact_id="$1" 
             local command_failed=0
 
-            #TODO: temporary logic to get artifact_id by version/color
-            case "$1" in
-              "orange")
-                  artifact_id="0e74e808-13dc-4001-a556-2e3f1a015a43"
-                  ;;
-              "yellow")
-                  artifact_id="f81339ee-339a-4f2f-b432-2c47da823557"
-                  ;;
-              "blue")
-                  artifact_id="817d771a-0d47-451d-84c1-7b6b3e0d5e81"
-                  ;;
-              "green")
-                  artifact_id="95e2ab44-ca32-4105-971e-fb2a0ae80e89"
-                  ;;    
-          esac
-            
             PAYLOAD=$(jq --null-input \
             --arg artifact_id "$artifact_id" \
             --arg runId "$CB_RUN_ID" \
@@ -254,8 +247,8 @@ jobs:
             fi
 
             if [[ "$status" == "Degraded" ]]; then
-              publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
-              echo "ERROR: Version: ${{ inputs.version }} deployment failed"
+              publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+              echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "$rollout_output"
               kubectl get pods -n ${{ inputs.namespace }}
               exit -1
@@ -264,11 +257,11 @@ jobs:
             # Register deployment if we are getting the status for the first time
             # Else only update the deployment status if there is a change
             if [[ -z "$previous_status" ]]; then
-              register_deployment "${{ inputs.version }}"
+              register_deployment "${{ inputs.artifact-id }}"
               publish_evidence "Deployment strategy: $strategy_type"
             fi
             if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
-              publish_evidence "Version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+              publish_evidence "Version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
             fi
             previous_status="$status"
             previous_step="$current_step"
@@ -298,7 +291,9 @@ jobs:
     timeout-minutes: 4320
     delegates: cloudbees-io/manual-approval/custom-job.yml@v1
   complete-deployment:
-    needs: verify-canary
+    needs: 
+      - verify-canary
+      - get-version
     permissions:
       scm-token-own: read
       id-token: write
@@ -338,24 +333,8 @@ jobs:
           set -u
 
           function register_deployment() {
-            local artifact_id="95e2ab44-ca32-4105-971e-fb2a0ae80e89" #green
+            local artifact_id="$1" 
             local command_failed=0
-
-            #TODO: temporary logic to get artifact_id by version/color
-            case "$1" in
-              "orange")
-                  artifact_id="0e74e808-13dc-4001-a556-2e3f1a015a43"
-                  ;;
-              "yellow")
-                  artifact_id="f81339ee-339a-4f2f-b432-2c47da823557"
-                  ;;
-              "blue")
-                  artifact_id="817d771a-0d47-451d-84c1-7b6b3e0d5e81"
-                  ;;
-              "green")
-                  artifact_id="95e2ab44-ca32-4105-971e-fb2a0ae80e89"
-                  ;;    
-          esac
 
             PAYLOAD=$(jq --null-input \
             --arg artifact_id "$artifact_id" \
@@ -441,9 +420,9 @@ jobs:
 
             if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
               if [ "$ROLLOUT_ACTION" == "promote" ]; then
-                publish_evidence "Version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+                publish_evidence "Version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
               else 
-                publish_evidence "Aborting rollout for version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+                publish_evidence "Aborting rollout for version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
               fi
             fi
             
@@ -456,27 +435,27 @@ jobs:
 
            if [ "$ROLLOUT_ACTION" == "promote" ]; then
             if [[ "$status" == "Healthy" ]]; then
-              publish_evidence "Version: ${{ inputs.version }} deployed successfully"
+              publish_evidence "Version: ${{ needs.get-version.outputs.version }} deployed successfully"
             elif [[ "$status" == "Degraded" ]]; then
-              publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
-              echo "ERROR: Version: ${{ inputs.version }} deployment failed"
+              publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+              echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "$rollout_output"
               kubectl get pods -n ${{ inputs.namespace }}
               exit -1
             elif [[ "$status" == "Paused" ]]; then
-              publish_evidence "WARNING: Version: ${{ inputs.version }} deployment is paused indefinitely"
+              publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
               exit -1    
             fi
           else  
             if [[ "$status" == "Healthy" ]]; then
-              publish_evidence "Version: ${{ inputs.version }} rolled back"
+              publish_evidence "Version: ${{ needs.get-version.outputs.version }} rolled back"
             elif [[ "$status" == "Degraded" ]]; then
-              publish_evidence "ERROR: Version: ${{ inputs.version }} roll back failed"
-              echo "ERROR: Version: ${{ inputs.version }} roll back failed"
+              publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} roll back failed"
+              echo "ERROR: Version: ${{ needs.get-version.outputs.version }} roll back failed"
               echo "$rollout_output"
               exit -1
             elif [[ "$status" == "Paused" ]]; then
-              publish_evidence "WARNING: Version: ${{ inputs.version }} deployment is paused indefinitely"
+              publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
               exit -1    
             fi
           fi
