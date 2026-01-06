@@ -35,7 +35,7 @@ jobs:
         with:
           name: ${{ inputs.cluster }}
       - name: Deployment details
-        uses: docker://alpine/k8s:1.30.2
+        uses: docker://alpine/k8s:1.33.4
         run: |
           set -u
           kubectl version
