@@ -4,33 +4,18 @@ kind: workflow
 on:
   workflow_dispatch:
     inputs:
+      pod:
+        type: string  
+        required: true
       namespace:
-        description: Kubernetes namespace to install the chart in, created if missing
         type: string
         default: default
       cluster:
-        description: Kubernetes cluster to install the chart in
         type: string  
         required: true
       aws-region:
         type: string
         required: true  
-      aws-role-to-assume:
-        type: string
-        required: true
-  workflow_call:
-    inputs:
-      namespace:
-        description: Kubernetes namespace to install the chart in, created if missing
-        type: string
-        default: default
-      cluster:
-        description: Kubernetes cluster to install the chart in
-        type: string  
-        required: true  
-      aws-region:
-        type: string
-        required: true   
       aws-role-to-assume:
         type: string
         required: true
@@ -55,4 +40,4 @@ jobs:
           set -u
           kubectl version
           kubectl cluster-info
-          kubectl get pods -n ${{ inputs.namespace }}
+          kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
