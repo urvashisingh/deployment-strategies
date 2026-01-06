@@ -132,7 +132,6 @@ jobs:
           set -u
           kubectl version
           kubectl cluster-info dump
-          cat $CLOUDBEES_OUTPUTS/values.yaml
       - name: Deploy Helm chart
         uses: cloudbees-io/helm-install@v1
         with:
@@ -151,7 +150,7 @@ jobs:
           CB_RUN_ID: ${{ cloudbees.run_id }}
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
-          DEBUG: true
+          DEBUG: "true"
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
@@ -329,7 +328,7 @@ jobs:
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
           ROLLOUT_ACTION: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action }}
-          DEBUG: true
+          DEBUG: "true"
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
