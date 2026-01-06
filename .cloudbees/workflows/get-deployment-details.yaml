@@ -40,6 +40,11 @@ jobs:
           set -u
           kubectl version
           kubectl cluster-info
+          
+          kubectl delete namespace us-argo-rollouts
+          kubectl delete namespace testns
+          kubectl delete namespace testns1
+
           kubectl get namespaces
           kubectl get pods -A
           kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
