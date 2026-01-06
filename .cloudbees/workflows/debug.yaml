@@ -1,0 +1,25 @@
+name: debug
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+on:
+  workflow_dispatch:
+    
+jobs:
+  debug:
+    steps:
+      - uses: docker://alpine/k8s:1.33.4
+        run: |
+          set -u
+          echo "Debugging"
+          echo "***TESTING***" > $CLOUDBEES_OUTPUTS/values.yaml
+          echo "pauseIndefinitely:***" >> $CLOUDBEES_OUTPUTS/values.yaml
+          cat $CLOUDBEES_OUTPUTS/values.yaml
+      - name: Say hello
+        uses: docker://golang:1.20.3-alpine3.17
+        env:
+          FILE: $CLOUDBEES_OUTPUTS/values.yaml
+        shell: sh
+        run: |
+          echo "$FILE"
+          cat $FILE  
+
