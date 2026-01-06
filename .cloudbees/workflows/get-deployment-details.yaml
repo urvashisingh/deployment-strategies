@@ -48,3 +48,4 @@ jobs:
           kubectl get namespaces
           kubectl get pods -A
           kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
+          kubectl get rollouts -n ${{ inputs.namespace }}
