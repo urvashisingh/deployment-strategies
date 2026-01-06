@@ -40,4 +40,6 @@ jobs:
           set -u
           kubectl version
           kubectl cluster-info
+          kubectl get namespaces
+          kubectl get pods -A
           kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
