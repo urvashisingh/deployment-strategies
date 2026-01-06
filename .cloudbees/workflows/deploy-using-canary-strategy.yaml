@@ -217,6 +217,14 @@ jobs:
             sleep 10
             rollout_output="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} -o json)"
             status="$(echo "$rollout_output" | jq -r '.status.phase')"
+            is_canary="$(echo "$rollout_output" | jq '.spec.strategy | has("canary")')"
+            is_bluegreen="$(echo "$rollout_output" | jq '.spec.strategy | has("blueGreen")')"
+            strategy_type=""
+            if [ "$is_canary" = "true" ]; then
+              strategy_type="Canary"
+            elif [ "$is_bluegreen" = "true" ]; then
+              strategy_type="Blue-green"
+            fi
             
             total_replicas="$(echo "$rollout_output" | jq -r '.spec.replicas')"
             canary_replicas="$(echo "$rollout_output" | jq -r '.status.updatedReplicas')"
@@ -256,6 +264,7 @@ jobs:
             # Else only update the deployment status if there is a change
             if [[ -z "$previous_status" ]]; then
               register_deployment "${{ inputs.version }}"
+              publish_evidence "Deployment strategy: $strategy_type"
             fi
             if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
               publish_evidence "Version: ${{ inputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
