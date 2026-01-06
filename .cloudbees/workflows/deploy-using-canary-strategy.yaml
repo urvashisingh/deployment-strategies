@@ -249,6 +249,7 @@ jobs:
               publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "$rollout_output"
+              kubectl get pods -n ${{ inputs.namespace }}
               exit -1
             fi
           
@@ -451,6 +452,7 @@ jobs:
               publish_evidence "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "ERROR: Version: ${{ inputs.version }} deployment failed"
               echo "$rollout_output"
+              kubectl get pods -n ${{ inputs.namespace }}
               exit -1
             elif [[ "$status" == "Paused" ]]; then
               publish_evidence "WARNING: Version: ${{ inputs.version }} deployment is paused indefinitely"
