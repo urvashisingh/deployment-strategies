@@ -122,10 +122,10 @@ jobs:
         uses: docker://alpine/k8s:1.30.2
         run: |
           set -u
-          echo "image:" > $CLOUDBEES_OUTPUTS/values.yaml
-          echo "  tag: ${{ needs.get-version.outputs.version }}" >> $CLOUDBEES_OUTPUTS/values.yaml
-          echo "pauseIndefinitely: ${{ inputs.pause }}" >> $CLOUDBEES_OUTPUTS/values.yaml
-          cat $CLOUDBEES_OUTPUTS/values.yaml
+          echo "image:" > $CLOUDBEES_WORKSPACE/values.yaml
+          echo "  tag: ${{ needs.get-version.outputs.version }}" >> $CLOUDBEES_WORKSPACE/values.yaml
+          echo "pauseIndefinitely: ${{ inputs.pause }}" >> $CLOUDBEES_WORKSPACE/values.yaml
+          cat $CLOUDBEES_WORKSPACE/values.yaml
       - name: K8S cluster details
         uses: docker://alpine/k8s:1.33.4
         run: |
@@ -137,7 +137,7 @@ jobs:
         with:
           release-name: ${{ inputs.release-name }}
           namespace: ${{ inputs.namespace }}
-          values-files: $CLOUDBEES_OUTPUTS/values.yaml
+          values-files: $CLOUDBEES_WORKSPACE/values.yaml
           timeout: ${{ inputs.timeout }}
           chart-location: ${{ inputs.chart-location }}
           debug: true
