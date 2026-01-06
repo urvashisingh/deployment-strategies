@@ -7,7 +7,8 @@ on:
 jobs:
   debug:
     steps:
-      - uses: docker://alpine/k8s:1.33.4
+      - uses: docker://golang:1.20.3-alpine3.17
+        shell: sh
         run: |
           set -u
           echo "Debugging"
