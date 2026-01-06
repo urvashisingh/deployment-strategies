@@ -35,10 +35,10 @@ on:
           Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
         type: string
         required: true
-      debug:
-        description: Execute the helm command in debug mode
+      pause:
+        description: Whether to pause for canary verification
         type: boolean
-        default: false
+        default: true
       aws-region:
         type: string
         required: true  
@@ -78,10 +78,10 @@ on:
           Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
         type: string
         required: true
-      debug:
-        description: Execute the helm command in debug mode
+      pause:
+        description: Whether to pause for canary verification
         type: boolean
-        default: false
+        default: true
       aws-region:
         type: string
         required: true   
@@ -118,12 +118,13 @@ jobs:
       - uses: cloudbees-io/checkout@v1
         with:
           repository: https://github.com/urvashisingh/deployment-strategies
-      - name: Create values.yaml with service version
+      - name: Create values.yaml 
         uses: docker://alpine/k8s:1.30.2
         run: |
           set -u
           echo "image:" > /tmp/values.yaml
           echo "  tag: ${{ needs.get-version.outputs.version }}" >> /tmp/values.yaml
+          echo "pauseIndefinitely: ${{ inputs.pause }}" >> /tmp/values.yaml
           cat /tmp/values.yaml
       - name: K8S cluster details
         uses: docker://alpine/k8s:1.33.4
@@ -139,7 +140,7 @@ jobs:
           values-files: /tmp/values.yaml
           timeout: ${{ inputs.timeout }}
           chart-location: ${{ inputs.chart-location }}
-          debug: ${{ inputs.debug }}
+          debug: true
           wait: true
       - name: Watch Rollout progress
         id: rollout
@@ -149,7 +150,7 @@ jobs:
           CB_RUN_ID: ${{ cloudbees.run_id }}
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
-          DEBUG: ${{ inputs.debug }}
+          DEBUG: true
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
@@ -327,7 +328,7 @@ jobs:
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
           ENVIRONMENT: ${{ inputs.env }}
           ROLLOUT_ACTION: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action }}
-          DEBUG: ${{ inputs.debug }}
+          DEBUG: true
         uses: docker://alpine/k8s:1.32.11
         run: |
           set -u
