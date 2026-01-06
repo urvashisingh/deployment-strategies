@@ -20,6 +20,8 @@ jobs:
           FILE: $CLOUDBEES_WORKSPACE/values.yaml
         shell: sh
         run: |
-          echo "$FILE"
+          echo "1: $CLOUDBEES_WORKSPACE/values.yaml"
+          cat $CLOUDBEES_WORKSPACE/values.yaml
+          echo "2: $FILE"
           cat $FILE  
 
