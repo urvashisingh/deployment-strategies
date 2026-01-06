@@ -137,7 +137,7 @@ jobs:
         with:
           release-name: ${{ inputs.release-name }}
           namespace: ${{ inputs.namespace }}
-          values-files: $CLOUDBEES_WORKSPACE/values.yaml
+          values-files: values.yaml
           timeout: ${{ inputs.timeout }}
           chart-location: ${{ inputs.chart-location }}
           debug: true
