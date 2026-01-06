@@ -6,7 +6,7 @@ on:
     inputs:
       pod:
         type: string  
-        required: true
+        required: false
       namespace:
         type: string
         default: default
@@ -47,7 +47,7 @@ jobs:
 
           kubectl get namespaces
           kubectl get pods -A
-          kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
+          #kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
           kubectl get rollouts -n ${{ inputs.namespace }}
           echo "Debugging"
           echo "***TESTING***" > $CLOUDBEES_OUTPUTS/values.yaml
