@@ -4,41 +4,35 @@ kind: workflow
 on:
   workflow_dispatch:
     inputs:
-      release-name:
+      helm-release:
         description: Helm release name
         type: string
         required: true
-      env:
-        description: Environment name to deploy on
-        type: string
-        required: true
-        default: prod  
-      namespace:
-        description: Kubernetes namespace to install the chart in, created if missing
-        type: string
-        default: default
-      cluster:
-        description: Kubernetes cluster to install the chart in
-        type: string  
-        required: true
-      artifact-id:
-        description: artifact version UUID to be installed
-        type: string
-      timeout:
-        description: |
-          Helm chart installation timeout.
-          However, `Deployment.spec.progressDeadlineSeconds` takes precedence if it is defined with a lower value within the charts manifests.
-        type: string
-        default: 10m
-      chart-location:
+      helm-chart:
         description: |
           Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
         type: string
         required: true
+      artifact-id:
+        description: artifact version to be installed
+        type: string
+      environment:
+        description: Environment name to deploy on
+        type: string
+        required: true
+        default: prod
       pause:
         description: Whether to pause for canary verification
         type: boolean
         default: true
+      k8s-namespace:
+        description: Kubernetes namespace to install the chart in, created if missing
+        type: string
+        default: default
+      k8s-cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string
+        required: true
       aws-region:
         type: string
         required: true  
@@ -47,44 +41,38 @@ on:
         required: true
   workflow_call:
     inputs:
-      release-name:
+      helm-release:
         description: Helm release name
         type: string
         required: true
-      env:
-        description: Environment name to deploy on
-        type: string
-        required: true
-        default: prod  
-      namespace:
-        description: Kubernetes namespace to install the chart in, created if missing
-        type: string
-        default: default
-      cluster:
-        description: Kubernetes cluster to install the chart in
-        type: string  
-        required: true  
-      artifact-id:
-        description: Artifact version UUID to be installed
-        type: string
-      timeout:
-        description: |
-          Helm chart installation timeout.
-          However, `Deployment.spec.progressDeadlineSeconds` takes precedence if it is defined with a lower value within the charts manifests.
-        type: string
-        default: 10m
-      chart-location:
+      helm-chart:
         description: |
           Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
         type: string
         required: true
+      artifact-id:
+        description: artifact version to be installed
+        type: string
+      environment:
+        description: Environment name to deploy on
+        type: string
+        required: true
+        default: prod
       pause:
         description: Whether to pause for canary verification
         type: boolean
         default: true
+      k8s-namespace:
+        description: Kubernetes namespace to install the chart in, created if missing
+        type: string
+        default: default
+      k8s-cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string
+        required: true
       aws-region:
         type: string
-        required: true   
+        required: true
       aws-role-to-assume:
         type: string
         required: true
@@ -114,7 +102,7 @@ jobs:
           role-duration-seconds: "3600"
       - uses: cloudbees-io/configure-eks-credentials@v1
         with:
-          name: ${{ inputs.cluster }}
+          name: ${{ inputs.k8s-cluster }}
       - uses: cloudbees-io/checkout@v1
         with:
           repository: https://github.com/urvashisingh/deployment-strategies
@@ -135,11 +123,10 @@ jobs:
       - name: Deploy Helm chart
         uses: cloudbees-io/helm-install@v1
         with:
-          release-name: ${{ inputs.release-name }}
-          namespace: ${{ inputs.namespace }}
+          release-name: ${{ inputs.helm-release }}
+          namespace: ${{ inputs.k8s-namespace }}
           values-files: values.yaml
-          timeout: ${{ inputs.timeout }}
-          chart-location: ${{ inputs.chart-location }}
+          chart-location: ${{ inputs.helm-chart }}
           debug: true
           wait: true
       - name: Watch Rollout progress
@@ -149,7 +136,7 @@ jobs:
           CB_API_URL: ${{ cloudbees.api.url }}
           CB_RUN_ID: ${{ cloudbees.run_id }}
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
-          ENVIRONMENT: ${{ inputs.env }}
+          ENVIRONMENT: ${{ inputs.environment }}
           DEBUG: "true"
         uses: docker://alpine/k8s:1.32.11
         run: |
@@ -209,7 +196,7 @@ jobs:
 
           while $progressing; do
             sleep 10
-            rollout_output="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} -o json)"
+            rollout_output="$(kubectl get rollout ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }} -o json)"
             status="$(echo "$rollout_output" | jq -r '.status.phase')"
             is_canary="$(echo "$rollout_output" | jq '.spec.strategy | has("canary")')"
             is_bluegreen="$(echo "$rollout_output" | jq '.spec.strategy | has("blueGreen")')"
@@ -251,7 +238,7 @@ jobs:
               publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "$rollout_output"
-              kubectl get pods -n ${{ inputs.namespace }}
+              kubectl get pods -n ${{ inputs.k8s-namespace }}
               exit -1
             fi
           
@@ -307,7 +294,7 @@ jobs:
           role-duration-seconds: "3600"
       - uses: cloudbees-io/configure-eks-credentials@v1
         with:
-          name: ${{ inputs.cluster }}
+          name: ${{ inputs.k8s-cluster }}
       - name: Complete rollout
         uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         env:
@@ -315,9 +302,9 @@ jobs:
         run: |
           set -u
           if [ "$ROLLOUT_ACTION" == "promote" ]; then
-            kubectl-argo-rollouts promote ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
+            kubectl-argo-rollouts promote ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }}
           else
-            kubectl-argo-rollouts abort ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }}
+            kubectl-argo-rollouts abort ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }}
           fi
       - name: Watch Rollout progress
         id: rollout
@@ -326,7 +313,7 @@ jobs:
           CB_API_URL: ${{ cloudbees.api.url }}
           CB_RUN_ID: ${{ cloudbees.run_id }}
           CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
-          ENVIRONMENT: ${{ inputs.env }}
+          ENVIRONMENT: ${{ inputs.environment }}
           ROLLOUT_ACTION: ${{ fromJSON(needs.verify-canary.outputs.approvalInputValues).action }}
           DEBUG: "true"
         uses: docker://alpine/k8s:1.32.11
@@ -388,7 +375,7 @@ jobs:
 
           while $progressing; do
             sleep 10
-            rollout_output="$(kubectl get rollout ${{ inputs.release-name }}-canary-demo -n ${{ inputs.namespace }} -o json)"
+            rollout_output="$(kubectl get rollout ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }} -o json)"
             status="$(echo "$rollout_output" | jq -r '.status.phase')"
 
             total_replicas="$(echo "$rollout_output" | jq -r '.spec.replicas')"
@@ -441,7 +428,7 @@ jobs:
               publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "$rollout_output"
-              kubectl get pods -n ${{ inputs.namespace }}
+              kubectl get pods -n ${{ inputs.k8s-namespace }}
               exit -1
             elif [[ "$status" == "Paused" ]]; then
               publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
