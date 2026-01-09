@@ -121,7 +121,7 @@ jobs:
           kubectl version
           kubectl cluster-info dump
       - name: Deploy Helm chart
-        uses: cloudbees-io/helm-install@v1
+        uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
         with:
           release-name: ${{ inputs.helm-release }}
           namespace: ${{ inputs.k8s-namespace }}
