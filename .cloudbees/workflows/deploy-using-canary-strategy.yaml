@@ -17,7 +17,7 @@ on:
         description: artifact version to be installed
         type: string
       environment:
-        description: Environment name to deploy on
+        description: Environment to deploy on
         type: string
         required: true
         default: prod
