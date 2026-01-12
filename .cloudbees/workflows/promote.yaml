@@ -1,0 +1,191 @@
+name: promote rollout
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+on:
+  workflow_call:
+    inputs:
+      helm-release:
+        description: Helm release name
+        type: string
+        required: true
+      artifact-id:
+        description: artifact version to be installed
+        type: string
+      environment:
+        description: Environment name to deploy on
+        type: string
+        required: true
+        default: prod
+      k8s-namespace:
+        description: Kubernetes namespace to install the chart in, created if missing
+        type: string
+        default: default
+      k8s-cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string
+        required: true
+      aws-region:
+        type: string
+        required: true
+      aws-role-to-assume:
+        type: string
+        required: true
+jobs:
+  promote-deployment:
+    permissions:
+      scm-token-own: read
+      id-token: write
+    steps:
+      - name: Login to AWS
+        uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          role-duration-seconds: "3600"
+      - uses: cloudbees-io/configure-eks-credentials@v1
+        with:
+          name: ${{ inputs.k8s-cluster }}
+      - name: Complete rollout
+        uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
+        run: |
+          set -u
+          kubectl-argo-rollouts promote ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }}
+      - name: Watch Rollout progress
+        id: rollout
+        env:
+          JWT: ${{ cloudbees.api.token }}
+          CB_API_URL: ${{ cloudbees.api.url }}
+          CB_RUN_ID: ${{ cloudbees.run_id }}
+          CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          DEBUG: "true"
+        uses: docker://alpine/k8s:1.32.11
+        run: |
+          set -u
+
+          function register_deployment() {
+            local artifact_id="$1" 
+            local command_failed=0
+
+            PAYLOAD=$(jq --null-input \
+            --arg artifact_id "$artifact_id" \
+            --arg runId "$CB_RUN_ID" \
+            --arg runAttempt "$CB_RUN_ATTEMPT" \
+            --arg environment "$ENVIRONMENT" \
+            '{"runId": $runId, "runAttempt": $runAttempt, "artifact_id": $artifact_id, "environment": $environment}')
+
+            response=$(curl --silent --show-error --fail-with-body  -X 'POST' "$CB_API_URL/v3/deployments" \
+              -H "Authorization: Bearer $JWT" \
+              -H 'Content-Type: application/json' \
+              -d "$PAYLOAD") || command_failed=1
+
+            if [ ${command_failed:-0} -eq 1 ];
+            then
+              echo "Failed to add deployment for artifact_id: $artifact_id, error: '$response'"
+            fi  
+          }
+
+          function publish_evidence() {
+            local evidence=$1
+            local command_failed=0
+
+            PAYLOAD=$(jq --null-input \
+            --arg evidence "$evidence" \
+            --arg runId "$CB_RUN_ID" \
+            --arg runAttempt "$CB_RUN_ATTEMPT" \
+            '{"runId": $runId, "runAttempt": $runAttempt, "evidence": {"format": "MARKDOWN", "value": $evidence}}')
+
+            response=$(curl --retry 5 --retry-delay 10 --retry-all-errors --silent --show-error --fail-with-body \
+              -X 'POST' "$CB_API_URL/v1/workflows/artifact" \
+              -H "Authorization: Bearer $JWT" \
+              -H 'Content-Type: application/json' \
+              -d "$PAYLOAD") || command_failed=1
+
+            if [ ${command_failed:-0} -eq 1 ];
+            then
+              echo "Failed to publish workflow evidence, error: '$response'"
+            fi
+          }
+
+          progressing=true
+          request_approval=false
+          status=""
+          rollout_output=""
+
+          previous_status=""
+          previous_step=""
+          previous_replicas=""
+
+          while $progressing; do
+            sleep 10
+            rollout_output="$(kubectl get rollout ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }} -o json)"
+            status="$(echo "$rollout_output" | jq -r '.status.phase')"
+
+            total_replicas="$(echo "$rollout_output" | jq -r '.spec.replicas')"
+            canary_replicas="$(echo "$rollout_output" | jq -r '.status.updatedReplicas')"
+            total_steps="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps | length')"
+            current_step="$(echo "$rollout_output" | jq -r '.status.currentStepIndex')"
+            
+            # Add 1 to current step for human-friendly display but not if in Healthy because then rollout is complete and current index is at total step count
+            if [[ "$status" != "Healthy" ]]; then
+              current_step=$((current_step + 1))
+            fi
+
+            echo "Status: $status"  
+            if [ "$DEBUG" = "true" ]; then
+                echo "Rollout output: $rollout_output"
+            fi
+
+            if [[ "$status" == "Healthy" ]]; then
+              progressing=false
+            elif [[ "$status" == "Degraded" ]]; then
+              progressing=false
+            elif [[ "$status" == "Paused" ]]; then
+              duration="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration')"
+              echo "Pause duration: $duration"
+              if [[ "$duration" == "" || "$duration" == "null" ]]; then
+                progressing=false
+                request_approval=true
+              fi                              
+            fi
+
+            if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
+              publish_evidence "Version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+              # publish_evidence "Aborting rollout for version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"     
+            fi
+            
+
+            previous_status="$status"
+            previous_step="$current_step"
+            previous_replicas="$canary_replicas"
+
+          done
+ 
+          if [[ "$status" == "Healthy" ]]; then
+            publish_evidence "Version: ${{ needs.get-version.outputs.version }} deployed successfully"
+            register_deployment "${{ inputs.artifact-id }}"
+          elif [[ "$status" == "Degraded" ]]; then
+            publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+            echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+            echo "$rollout_output"
+            kubectl get pods -n ${{ inputs.k8s-namespace }}
+            exit -1
+          elif [[ "$status" == "Paused" ]]; then
+            publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
+            exit -1    
+          fi
+
+          # rollback   
+          #  if [[ "$status" == "Healthy" ]]; then
+          #    publish_evidence "Version: ${{ needs.get-version.outputs.version }} rolled back"
+          #  elif [[ "$status" == "Degraded" ]]; then
+          #    publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} roll back failed"
+          #    echo "ERROR: Version: ${{ needs.get-version.outputs.version }} roll back failed"
+          #    echo "$rollout_output"
+          #    exit -1
+          #  elif [[ "$status" == "Paused" ]]; then
+          #    publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
+          #    exit -1    
+          #  fi
+          
+  
