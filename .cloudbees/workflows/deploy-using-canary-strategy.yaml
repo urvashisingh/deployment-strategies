@@ -129,6 +129,7 @@ jobs:
           chart-location: ${{ inputs.helm-chart }}
           debug: true
           wait: true
+          dry-run: true
       - name: Watch Rollout progress
         id: rollout
         env:
