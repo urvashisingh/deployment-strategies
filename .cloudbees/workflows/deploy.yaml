@@ -1,0 +1,277 @@
+name: deploy
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+on:
+  workflow_dispatch:
+    inputs:
+      helm-release:
+        description: Helm release name
+        type: string
+        required: true
+      helm-chart:
+        description: |
+          Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
+        type: string
+        required: true
+      artifact-id:
+        description: artifact version to be installed
+        type: string
+      environment:
+        description: Environment to deploy on
+        type: string
+        required: true
+      deployment-strategy:
+        description: Deployment strategy to use
+        type: choice
+        options:
+          - none
+          - canary
+          - blue-green (coming soon)
+        default: none  
+      k8s-namespace:
+        description: Kubernetes namespace to install the chart in, created if missing
+        type: string
+        default: default
+      k8s-cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string
+        required: true
+      aws-region:
+        type: string
+        required: true  
+      aws-role-to-assume:
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      helm-release:
+        description: Helm release name
+        type: string
+        required: true
+      helm-chart:
+        description: |
+          Helm chart location, can be a URL, a local chart archive, chart repo alias/chart name or an unpacked chart directory
+        type: string
+        required: true
+      artifact-id:
+        description: artifact version to be installed
+        type: string
+      environment:
+        description: Environment name to deploy on
+        type: string
+        required: true
+      deployment-strategy:
+        description: Deployment strategy to use
+        type: choice
+        options:
+          - none
+          - canary
+          - blue-green (coming soon)
+        default: none
+      k8s-namespace:
+        description: Kubernetes namespace to install the chart in, created if missing
+        type: string
+        default: default
+      k8s-cluster:
+        description: Kubernetes cluster to install the chart in
+        type: string
+        required: true
+      aws-region:
+        type: string
+        required: true
+      aws-role-to-assume:
+        type: string
+        required: true
+    outputs:
+      status:
+        description: 'Deployment status. Possible values: succeeded, failed, pending_verification'
+        value: ${{ jobs.deploy.outputs.status }}    
+jobs:
+  get-version:
+    outputs:
+      version: ${{ steps.get-artifact-details.outputs.version }}
+    steps:
+      - id: get-artifact-details
+        uses: cloudbees-io/get-artifact-details@v1
+        with:
+          artifact-id: ${{ inputs.artifact-id }}
+  deploy:
+    needs: get-version
+    outputs:
+      status: ${{ steps.rollout.outputs.status }}
+    permissions:
+      scm-token-own: read
+      id-token: write
+    steps:
+      - name: Login to AWS
+        uses: https://github.com/cloudbees-io/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-to-assume }}
+          role-duration-seconds: "3600"
+      - uses: cloudbees-io/configure-eks-credentials@v1
+        with:
+          name: ${{ inputs.k8s-cluster }}
+      - uses: cloudbees-io/checkout@v1
+        with:
+          repository: https://github.com/urvashisingh/deployment-strategies
+      - name: Create values.yaml 
+        uses: docker://alpine/k8s:1.30.2
+        run: |
+          set -u
+          echo "image:" > $CLOUDBEES_WORKSPACE/values.yaml
+          echo "  tag: ${{ needs.get-version.outputs.version }}" >> $CLOUDBEES_WORKSPACE/values.yaml
+          cat $CLOUDBEES_WORKSPACE/values.yaml
+      - name: K8S cluster details
+        uses: docker://alpine/k8s:1.33.4
+        run: |
+          set -u
+          kubectl version
+          kubectl cluster-info dump
+      - name: Deploy Helm chart
+        uses: cloudbees-io/helm-install/.cloudbees/testing@argo-rollout
+        with:
+          release-name: ${{ inputs.helm-release }}
+          namespace: ${{ inputs.k8s-namespace }}
+          values-files: values.yaml
+          chart-location: ${{ inputs.helm-chart }}
+          debug: true
+          wait: true
+          deployment-strategy: ${{ inputs.deployment-strategy }}
+      - name: Watch Rollout progress
+        id: rollout
+        env:
+          JWT: ${{ cloudbees.api.token }}
+          CB_API_URL: ${{ cloudbees.api.url }}
+          CB_RUN_ID: ${{ cloudbees.run_id }}
+          CB_RUN_ATTEMPT: ${{ cloudbees.run_attempt }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          DEBUG: "true"
+          DEPLOYMENT_STRATEGY: ${{ inputs.deployment-strategy }}
+        uses: docker://alpine/k8s:1.32.11
+        run: |
+          set -u
+
+          function register_deployment() {
+            local artifact_id="$1" 
+            local command_failed=0
+
+            PAYLOAD=$(jq --null-input \
+            --arg artifact_id "$artifact_id" \
+            --arg runId "$CB_RUN_ID" \
+            --arg runAttempt "$CB_RUN_ATTEMPT" \
+            --arg environment "$ENVIRONMENT" \
+            '{"runId": $runId, "runAttempt": $runAttempt, "artifact_id": $artifact_id, "environment": $environment}')
+
+            response=$(curl --silent --show-error --fail-with-body  -X 'POST' "$CB_API_URL/v3/deployments" \
+              -H "Authorization: Bearer $JWT" \
+              -H 'Content-Type: application/json' \
+              -d "$PAYLOAD") || command_failed=1
+
+            if [ ${command_failed:-0} -eq 1 ];
+            then
+              echo "Failed to add deployment for artifact_id: $artifact_id, error: '$response'"
+            fi  
+          }
+
+          function publish_evidence() {
+            local evidence=$1
+            local command_failed=0
+
+            PAYLOAD=$(jq --null-input \
+            --arg evidence "$evidence" \
+            --arg runId "$CB_RUN_ID" \
+            --arg runAttempt "$CB_RUN_ATTEMPT" \
+            '{"runId": $runId, "runAttempt": $runAttempt, "evidence": {"format": "MARKDOWN", "value": $evidence}}')
+
+            response=$(curl --retry 5 --retry-delay 10 --retry-all-errors --silent --show-error --fail-with-body \
+              -X 'POST' "$CB_API_URL/v1/workflows/artifact" \
+              -H "Authorization: Bearer $JWT" \
+              -H 'Content-Type: application/json' \
+              -d "$PAYLOAD") || command_failed=1
+
+            if [ ${command_failed:-0} -eq 1 ];
+            then
+              echo "Failed to publish workflow evidence, error: '$response'"
+            fi
+          }
+
+          progressing=true
+          rollout_status=""
+          normalized_status="" # Normalized deployment status, derived from rollout status
+          
+          previous_status=""
+          previous_step=""
+          previous_replicas=""
+
+          while $progressing; do
+            sleep 10
+            rollout_output="$(kubectl get rollout ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }} -o json)"
+            rollout_status="$(echo "$rollout_output" | jq -r '.status.phase')"
+            is_canary="$(echo "$rollout_output" | jq '.spec.strategy | has("canary")')"
+            is_bluegreen="$(echo "$rollout_output" | jq '.spec.strategy | has("blueGreen")')"
+            strategy_type=""
+            if [ "$is_canary" = "true" ]; then
+              strategy_type="Canary"
+            elif [ "$is_bluegreen" = "true" ]; then
+              strategy_type="Blue-green"
+            fi
+            
+            total_replicas="$(echo "$rollout_output" | jq -r '.spec.replicas')"
+            canary_replicas="$(echo "$rollout_output" | jq -r '.status.updatedReplicas')"
+            total_steps="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps | length')"
+            current_step="$(echo "$rollout_output" | jq -r '.status.currentStepIndex')"
+            # Add 1 to current step for human-friendly display but not if in Healthy because then rollout is complete and current index is at total step count
+            if [[ "$rollout_status" != "Healthy" ]]; then
+              current_step=$((current_step + 1))
+            fi
+
+            echo "Status: $rollout_status"
+            if [ "$DEBUG" = "true" ]; then
+                echo "Rollout output: $rollout_output"
+            fi
+
+            if [[ "$rollout_status" == "Healthy" ]]; then
+              progressing=false
+              normalized_status="succeeded"
+            elif [[ "$rollout_status" == "Degraded" ]]; then
+              progressing=false
+              normalized_status="failed"
+            elif [[ "$rollout_status" == "Paused" ]]; then
+              duration="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps[.status.currentStepIndex].pause.duration')"
+              echo "Pause duration: $duration"
+              if [[ "$duration" == "" || "$duration" == "null" ]]; then
+                progressing=false
+                normalized_status="pending_verification"
+              fi                              
+            fi
+
+            if [[ "$rollout_status" == "Degraded" ]]; then
+              publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+              echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+              echo "$rollout_output"
+              kubectl get pods -n ${{ inputs.k8s-namespace }}
+              exit -1
+            fi
+
+            # Capture deployment strategy if we are getting the status for the first time
+            # Else only update the deployment status if there is a change
+            if [[ -z "$previous_status" ]]; then
+              publish_evidence "Deployment strategy: $strategy_type"
+            fi
+            if [[ "$rollout_status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
+              publish_evidence "Version: ${{ needs.get-version.outputs.version }}, Deployment status: $rollout_status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
+            fi
+            previous_status="$rollout_status"
+            previous_step="$current_step"
+            previous_replicas="$canary_replicas"
+            
+          done
+
+          if [[ "$normalized_status" == "succeeded" ]]; then
+              register_deployment "${{ inputs.artifact-id }}"  
+          fi
+
+          echo "$normalized_status" > "$CLOUDBEES_OUTPUTS/status"
+  
+ 
