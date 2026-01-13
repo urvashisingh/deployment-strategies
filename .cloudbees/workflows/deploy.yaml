@@ -203,6 +203,14 @@ jobs:
           previous_status=""
           previous_step=""
           previous_replicas=""
+          
+          if [ "$DEPLOYMENT_STRATEGY" = "none" ]; then
+            publish_evidence "Deployment strategy: None"
+            publish_evidence "Version: ${{ needs.get-version.outputs.version }} deployed successfully"
+            register_deployment "${{ inputs.artifact-id }}"
+            echo "succeeded" > "$CLOUDBEES_OUTPUTS/status"
+            exit 0
+          fi
 
           while $progressing; do
             sleep 10
