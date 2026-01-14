@@ -208,7 +208,7 @@ jobs:
             publish_evidence "Deployment strategy: None"
             publish_evidence "Version: ${{ needs.get-version.outputs.version }} deployed successfully"
             register_deployment "${{ inputs.artifact-id }}"
-            echo "succeeded" > "$CLOUDBEES_OUTPUTS/status"
+            echo -n "succeeded" > "$CLOUDBEES_OUTPUTS/status"
             exit 0
           fi
 
@@ -280,6 +280,6 @@ jobs:
               register_deployment "${{ inputs.artifact-id }}"  
           fi
 
-          echo "$normalized_status" > "$CLOUDBEES_OUTPUTS/status"
+          echo -n "$normalized_status" > "$CLOUDBEES_OUTPUTS/status"
   
  
