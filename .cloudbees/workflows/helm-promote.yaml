@@ -45,6 +45,10 @@ jobs:
       - uses: cloudbees-io/configure-eks-credentials@v1
         with:
           name: ${{ inputs.k8s-cluster }}
+      - id: get-version
+        uses: cloudbees-io/get-artifact-details@v1
+        with:
+          artifact-id: ${{ inputs.artifact-id }}    
       - name: Complete rollout
         uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         run: |
@@ -150,8 +154,7 @@ jobs:
             fi
 
             if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
-              publish_evidence "Version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
-              # publish_evidence "Aborting rollout for version: ${{ needs.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"     
+              publish_evidence "Version: ${{ steps.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"
             fi
             
 
@@ -162,30 +165,15 @@ jobs:
           done
  
           if [[ "$status" == "Healthy" ]]; then
-            publish_evidence "Version: ${{ needs.get-version.outputs.version }} deployed successfully"
+            publish_evidence "Version: ${{ steps.get-version.outputs.version }} deployed successfully"
             register_deployment "${{ inputs.artifact-id }}"
           elif [[ "$status" == "Degraded" ]]; then
-            publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
-            echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+            publish_evidence "ERROR: Version: ${{ steps.get-version.outputs.version }} deployment failed"
+            echo "ERROR: Version: ${{ steps.get-version.outputs.version }} deployment failed"
             echo "$rollout_output"
             kubectl get pods -n ${{ inputs.k8s-namespace }}
             exit -1
           elif [[ "$status" == "Paused" ]]; then
-            publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
+            publish_evidence "WARNING: Version: ${{ steps.get-version.outputs.version }} deployment is paused indefinitely"
             exit -1    
           fi
-
-          # rollback   
-          #  if [[ "$status" == "Healthy" ]]; then
-          #    publish_evidence "Version: ${{ needs.get-version.outputs.version }} rolled back"
-          #  elif [[ "$status" == "Degraded" ]]; then
-          #    publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} roll back failed"
-          #    echo "ERROR: Version: ${{ needs.get-version.outputs.version }} roll back failed"
-          #    echo "$rollout_output"
-          #    exit -1
-          #  elif [[ "$status" == "Paused" ]]; then
-          #    publish_evidence "WARNING: Version: ${{ needs.get-version.outputs.version }} deployment is paused indefinitely"
-          #    exit -1    
-          #  fi
-          
-  
