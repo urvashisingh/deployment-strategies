@@ -1,15 +1,15 @@
-name: get deployment details
+name: namespace details for debugging
 apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
 on:
   workflow_dispatch:
     inputs:
-      pod:
-        type: string  
-        required: false
       namespace:
         type: string
         default: default
+      delete-namespace:
+        type: boolean
+        default: false
       cluster:
         type: string  
         required: true
@@ -20,7 +20,9 @@ on:
         type: string
         required: true
 jobs:
-  get-pod-details:
+  namespace-details:
+    env:
+      DELETE_NAMESPACE: ${{ inputs.delete-namespace }}
     permissions:
       scm-token-own: read
       id-token: write
@@ -41,12 +43,11 @@ jobs:
           kubectl version
           kubectl cluster-info
           
-          #kubectl delete namespace us-argo-rollouts
-          #kubectl delete namespace testns
-          #kubectl delete namespace testns1
-
           kubectl get namespaces
           kubectl get pods -A
           #kubectl describe pod ${{ inputs.pod }} -n ${{ inputs.namespace }}
           kubectl get rollouts -n ${{ inputs.namespace }}
-          kubectl delete namespace ${{ inputs.namespace }}
+          if [ "$DELETE_NAMESPACE" = "true" ]; then
+            echo "Deleting namespace ${{ inputs.namespace }}"
+            kubectl delete namespace ${{ inputs.namespace }}
+          fi
