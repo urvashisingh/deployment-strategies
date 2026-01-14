@@ -85,7 +85,10 @@ on:
     outputs:
       status:
         description: 'Deployment status. Possible values: succeeded, failed, pending_verification'
-        value: ${{ jobs.deploy.outputs.status }}    
+        value: ${{ jobs.deploy.outputs.status }}
+      version:
+        description: Artifact version that was deployment   
+        value: ${{ jobs.get-version.outputs.version }}   
 jobs:
   get-version:
     outputs:
