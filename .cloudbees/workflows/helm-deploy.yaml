@@ -258,8 +258,8 @@ jobs:
             fi
 
             if [[ "$rollout_status" == "Degraded" ]]; then
-              publish_evidence "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
-              echo "ERROR: Version: ${{ needs.get-version.outputs.version }} deployment failed"
+              publish_evidence "❌ Version: ${{ needs.get-version.outputs.version }} deployment failed"
+              echo "❌ Version: ${{ needs.get-version.outputs.version }} deployment failed"
               echo "$rollout_output"
               kubectl get pods -n ${{ inputs.k8s-namespace }}
               exit -1
