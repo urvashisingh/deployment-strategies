@@ -49,12 +49,12 @@ jobs:
         uses: cloudbees-io/get-artifact-details@v1
         with:
           artifact-id: ${{ inputs.artifact-id }}
-      - name: Complete rollout
+      - name: Abort rollout
         uses: docker://020229604682.dkr.ecr.us-east-1.amazonaws.com/actions/helm-install-action:e7ba2d12beccee417aad45b6aa50966b7b5c8c06
         run: |
           set -u
           kubectl-argo-rollouts abort ${{ inputs.helm-release }}-canary-demo -n ${{ inputs.k8s-namespace }}
-      - name: Watch Rollout progress
+      - name: Watch rollout
         id: rollout
         env:
           JWT: ${{ cloudbees.api.token }}
@@ -112,13 +112,9 @@ jobs:
           }
 
           progressing=true
-          request_approval=false
           status=""
-          rollout_output=""
-
           previous_status=""
-          previous_step=""
-          previous_replicas=""
+          rollout_output=""
 
           while $progressing; do
             sleep 10
@@ -127,14 +123,7 @@ jobs:
 
             total_replicas="$(echo "$rollout_output" | jq -r '.spec.replicas')"
             canary_replicas="$(echo "$rollout_output" | jq -r '.status.updatedReplicas')"
-            total_steps="$(echo "$rollout_output" | jq -r '.spec.strategy.canary.steps | length')"
-            current_step="$(echo "$rollout_output" | jq -r '.status.currentStepIndex')"
             
-            # Add 1 to current step for human-friendly display but not if in Healthy because then rollout is complete and current index is at total step count
-            if [[ "$status" != "Healthy" ]]; then
-              current_step=$((current_step + 1))
-            fi
-
             echo "Status: $status"  
             if [ "$DEBUG" = "true" ]; then
                 echo "Rollout output: $rollout_output"
@@ -146,28 +135,17 @@ jobs:
               progressing=false                              
             fi
 
-            if [[ "$status" != "$previous_status" || "$current_step" != "$previous_step" || "$canary_replicas" != "$previous_replicas" ]]; then
-              publish_evidence "Aborting rollout for version: ${{ steps.get-version.outputs.version }}, Deployment status: $status, Step $current_step of $total_steps, Updated replicas $canary_replicas of $total_replicas"     
+            if [[ "$status" != "$previous_status" ]]; then
+              publish_evidence "Aborting rollout for version: ${{ steps.get-version.outputs.version }}, Deployment status: $status"     
             fi
             
-
             previous_status="$status"
-            previous_step="$current_step"
-            previous_replicas="$canary_replicas"
 
           done
  
-          if [[ "$status" == "Healthy" ]]; then
-            publish_evidence "Version: ${{ steps.get-version.outputs.version }} rolled back"
-          elif [[ "$status" == "Degraded" ]]; then
-            publish_evidence "ERROR: Version: ${{ steps.get-version.outputs.version }} roll back failed"
-              echo "ERROR: Version: ${{ steps.get-version.outputs.version }} roll back failed"
-              echo "$rollout_output"
-              exit -1
-            elif [[ "$status" == "Paused" ]]; then
-              publish_evidence "WARNING: Version: ${{ steps.get-version.outputs.version }} deployment is paused indefinitely"
-              exit -1    
-            fi
-          fi  
+          publish_evidence "🔄 Version: ${{ steps.get-version.outputs.version }} rolled back"
+          echo "🔄 Version: ${{ steps.get-version.outputs.version }} rolled back"
+          echo "$rollout_output"
+          exit -1  
           
   
