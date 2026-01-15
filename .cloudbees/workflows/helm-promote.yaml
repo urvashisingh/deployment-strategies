@@ -165,15 +165,17 @@ jobs:
           done
  
           if [[ "$status" == "Healthy" ]]; then
-            publish_evidence "Version: ${{ steps.get-version.outputs.version }} deployed successfully"
+            publish_evidence "✅️ Version: ${{ steps.get-version.outputs.version }} deployed successfully"
+            echo "✅️ Version: ${{ steps.get-version.outputs.version }} deployed successfully"
             register_deployment "${{ inputs.artifact-id }}"
           elif [[ "$status" == "Degraded" ]]; then
-            publish_evidence "ERROR: Version: ${{ steps.get-version.outputs.version }} deployment failed"
-            echo "ERROR: Version: ${{ steps.get-version.outputs.version }} deployment failed"
+            publish_evidence "❌ Version: ${{ steps.get-version.outputs.version }} deployment failed"
+            echo "❌ Version: ${{ steps.get-version.outputs.version }} deployment failed"
             echo "$rollout_output"
             kubectl get pods -n ${{ inputs.k8s-namespace }}
             exit -1
           elif [[ "$status" == "Paused" ]]; then
-            publish_evidence "WARNING: Version: ${{ steps.get-version.outputs.version }} deployment is paused indefinitely"
+            publish_evidence "⚠️ Version: ${{ steps.get-version.outputs.version }} deployment is paused indefinitely"
+            echo "⚠️ Version: ${{ steps.get-version.outputs.version }} deployment is paused indefinitely"
             exit -1    
           fi
